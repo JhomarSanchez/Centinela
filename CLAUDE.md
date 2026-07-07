@@ -1,21 +1,20 @@
 # CLAUDE.md
 
-Este proyecto usa [`AGENTS.md`](./AGENTS.md) como fuente principal de instrucciones. Léelo primero — contiene el contexto del proyecto, las reglas no negociables, la estructura de carpetas y la definición de "hecho".
+This project uses [`AGENTS.md`](./AGENTS.md) as the primary instruction file. Read it first; it contains the project context, non-negotiable rules, repository structure, and definition of done.
 
-Este archivo solo añade notas específicas para Claude Code.
+This file only adds Claude Code-specific reminders.
 
-## Al iniciar una sesión
+## Session Startup
 
-1. Lee, en este orden: `AGENTS.md` → `docs/ROADMAP.md` → `docs/DECISIONS_LOG.md` (últimas entradas) → `docs/ARCHITECTURE.md` si vas a tocar diseño.
-2. Confirma en qué fase del roadmap estamos antes de escribir código.
+1. Read, in this order: `AGENTS.md`, `docs/ROADMAP.md`, the latest entries in `docs/DECISIONS_LOG.md`, and `docs/ARCHITECTURE.md` if you will touch design.
+2. Confirm the current roadmap phase before writing code.
 
-## Preferencias de ejecución
+## Execution Preferences
 
-- Usa el sandbox de Bash para levantar y probar el proyecto con `docker-compose` antes de dar una tarea por terminada.
-- Corre linter y tests localmente antes de reportar que algo está listo.
-- Al terminar una tarea o tomar una decisión de arquitectura, añade la entrada correspondiente en `docs/DECISIONS_LOG.md` usando su plantilla — no lo dejes para "después".
-- Si vas a hacer un cambio que se desvía del plan en `docs/ROADMAP.md`, dilo explícitamente antes de proceder, no lo hagas silenciosamente.
+- Use the shell environment available in the coding session to run Docker Compose, linters, and tests before marking a coding task complete.
+- When a task ends or an architecture decision is made, add the matching entry to `docs/DECISIONS_LOG.md` immediately.
+- If a change would deviate from `docs/ROADMAP.md`, state that explicitly before proceeding.
 
-## Recuerda
+## Remember
 
-El usuario está aprendiendo. Explica brevemente las decisiones no obvias mientras trabajas, no solo el resultado final.
+The user is learning. Explain non-obvious choices briefly while you work, not only in the final result.

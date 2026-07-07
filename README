@@ -1,0 +1,150 @@
+# Centinela
+
+**A local-first monitoring platform that turns service outages into readable incident summaries.**
+
+Centinela watches the health of services you care about, stores their availability history, exposes operational metrics, and will use a local LLM through Ollama to explain incidents in plain language.
+
+The project is being built as a portfolio-grade backend and DevOps system: practical enough to use for personal infrastructure, but scoped clearly enough to show clean engineering decisions.
+
+## Why This Exists
+
+Most small personal projects fail quietly. A site goes down, an API starts timing out, or a dependency becomes flaky, and you only notice when you manually check it.
+
+Centinela is designed to answer three simple questions:
+
+- Is this service up right now?
+- How has it behaved over time?
+- When it fails, what happened in human-readable terms?
+
+Instead of stopping at a red `DOWN` label, the long-term goal is to combine classic monitoring with local AI-generated incident summaries.
+
+## What Centinela Will Do
+
+- Register services and endpoints to monitor.
+- Run periodic HTTP health checks.
+- Store status, latency, timestamps, and HTTP response data.
+- Expose API endpoints for service management and check history.
+- Export Prometheus metrics for dashboards.
+- Show service health in Grafana.
+- Detect incidents after repeated failures.
+- Generate incident summaries with Ollama running locally.
+- Run first with Docker Compose, then in a local Kubernetes cluster.
+
+## Current Status
+
+**Phase 0 is complete. Phase 1 is next.**
+
+Planning, architecture, roadmap, and AI-agent context are in place. There is no runnable application code yet.
+
+The next milestone is the basic backend:
+
+- FastAPI project structure.
+- PostgreSQL persistence.
+- Service registration endpoints.
+- Periodic health checks.
+- Docker Compose for local execution.
+- Basic tests.
+
+See [`docs/ROADMAP.md`](./docs/ROADMAP.md) for the full phased plan.
+
+## Planned User Flow
+
+Once Phase 1 is implemented, the core flow will look like this:
+
+```text
+Register a service URL
+        |
+        v
+Centinela checks it periodically
+        |
+        v
+Each check is stored in PostgreSQL
+        |
+        v
+You query the API for health history
+        |
+        v
+Later phases expose dashboards and AI incident summaries
+```
+
+Target example:
+
+```bash
+# Register a service
+curl -X POST http://localhost:8000/services \
+  -H "X-API-Key: change-me" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Personal API", "url": "https://example.com/health", "check_interval_seconds": 60}'
+
+# Read recent health history
+curl http://localhost:8000/services/1/checks
+```
+
+These commands are examples of the intended interface, not runnable commands yet.
+
+## Architecture at a Glance
+
+Phase 1 starts small: one FastAPI backend, PostgreSQL, and an in-process scheduler. Later phases add Prometheus, Grafana, Ollama, and Kubernetes.
+
+```mermaid
+flowchart LR
+    User((User)) --> API[FastAPI backend]
+    API --> DB[(PostgreSQL)]
+    API --> Scheduler[APScheduler]
+    Scheduler --> Services[Monitored services]
+    Scheduler --> DB
+    API -. Phase 2 .-> Prometheus[Prometheus]
+    Prometheus -. Phase 2 .-> Grafana[Grafana]
+    Scheduler -. Phase 3 .-> Ollama[Ollama local LLM]
+```
+
+For more detail, read [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
+
+## Tech Stack
+
+| Area | Choice |
+|---|---|
+| API | Python 3.11+ and FastAPI |
+| Database | PostgreSQL |
+| ORM and migrations | SQLAlchemy and Alembic |
+| Validation | Pydantic |
+| Scheduling | APScheduler |
+| Metrics | Prometheus |
+| Dashboards | Grafana |
+| Local AI | Ollama |
+| Containers | Docker and Docker Compose |
+| Orchestration | Minikube or Kind |
+| CI | GitHub Actions |
+
+## Repository Guide
+
+- [`AGENTS.md`](./AGENTS.md) - primary instructions for AI coding agents.
+- [`CLAUDE.md`](./CLAUDE.md) - Claude Code-specific notes.
+- [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) - system design and technical decisions.
+- [`docs/ROADMAP.md`](./docs/ROADMAP.md) - phased delivery plan.
+- [`docs/DECISIONS_LOG.md`](./docs/DECISIONS_LOG.md) - historical decision log.
+- [`.env.example`](./.env.example) - safe environment variable template.
+
+## How to Use This Repo Today
+
+Until Phase 1 lands, this repository is best read as a project blueprint:
+
+1. Start with this README for the product idea.
+2. Read [`docs/ROADMAP.md`](./docs/ROADMAP.md) to understand the delivery sequence.
+3. Read [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) to understand the planned system.
+4. Read [`docs/DECISIONS_LOG.md`](./docs/DECISIONS_LOG.md) to see why key choices were made.
+
+Once the backend exists, this section will be replaced with real setup and run commands.
+
+## Project Principles
+
+- Build in small phases and keep each phase working before moving on.
+- Prefer clear, explainable code over clever abstractions.
+- Keep every service containerized.
+- Avoid committing secrets.
+- Use local AI as infrastructure, not as an external paid dependency.
+- Keep the project useful for learning, portfolio review, and eventual personal use.
+
+## License
+
+This project is licensed under the terms in [`LICENSE`](./LICENSE).

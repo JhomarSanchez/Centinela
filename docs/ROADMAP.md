@@ -1,76 +1,84 @@
 # ROADMAP.md
 
-Plan de desarrollo por fases. **No avanzar a la siguiente fase sin cerrar la actual** (ver Definition of Done en `AGENTS.md`).
+Phased development plan. **Do not move to the next phase until the current phase is complete** according to the Definition of Done in `AGENTS.md`.
 
-## Fase 0 — Planeación ✅
+## Current Status
 
-- [x] Definir problema, alcance y stack.
-- [x] Documentar arquitectura y decisiones iniciales.
-- [x] Crear archivos de contexto para agentes de IA.
+- **Current phase:** Phase 1 - Basic backend.
+- **Completed:** Phase 0 - Planning.
+- **Next step:** Initialize the FastAPI backend structure and supporting development files.
+- **Important constraint:** Do not implement observability, Ollama incident summaries, Kubernetes, or CI before Phase 1 is working.
 
-## Fase 1 — Backend básico
+## Phase 0 - Planning Complete
 
-**Objetivo:** API funcional que registra servicios y hace health checks reales, con persistencia.
+- [x] Define the problem, scope, and stack.
+- [x] Document the architecture and initial decisions.
+- [x] Create AI context files for future agents.
+- [x] Align AI context files in English and add repository hygiene files.
 
-- [ ] Inicializar proyecto FastAPI + estructura de carpetas.
-- [ ] Modelos `Service` y `Check` + migraciones con Alembic.
-- [ ] Endpoints CRUD de `Service`.
-- [ ] Scheduler (APScheduler) que hace ping periódico a cada servicio registrado.
-- [ ] Guardar cada `Check` en la base de datos.
-- [ ] Endpoint para consultar histórico de un servicio.
-- [ ] Dockerfile del backend + `docker-compose.yml` (API + Postgres).
-- [ ] Tests básicos (CRUD + lógica de check).
+## Phase 1 - Basic Backend
 
-**Entregable:** puedes registrar una URL, y en unos minutos ver en la base de datos su historial de disponibilidad.
+**Goal:** A working API that registers services, performs real health checks, and persists results.
 
-## Fase 2 — Observabilidad clásica
+- [ ] Initialize FastAPI project and folder structure.
+- [ ] Add `Service` and `Check` models with Alembic migrations.
+- [ ] Add CRUD endpoints for `Service`.
+- [ ] Add an APScheduler job inside the backend process for periodic service checks.
+- [ ] Store every `Check` in the database.
+- [ ] Add an endpoint to query a service's check history.
+- [ ] Add backend `Dockerfile` and `docker-compose.yml` for API + PostgreSQL.
+- [ ] Add basic tests for CRUD and health-check logic.
 
-**Objetivo:** ver el estado del sistema en dashboards, no solo en la base de datos.
+**Deliverable:** You can register a URL and, after a few minutes, see its availability history stored in the database.
 
-- [ ] Exponer métricas en formato Prometheus (`/metrics`) desde el backend.
-- [ ] Añadir Prometheus a `docker-compose.yml`, configurado para scrapear el backend.
-- [ ] Añadir Grafana, conectado a Prometheus.
-- [ ] Dashboard básico: estado actual de cada servicio, latencia histórica, % de disponibilidad.
+## Phase 2 - Classic Observability
 
-**Entregable:** un dashboard de Grafana mostrando el estado real de tus servicios monitoreados.
+**Goal:** See system state in dashboards, not only in the database.
 
-## Fase 3 — IA local para resumen de incidentes
+- [ ] Expose Prometheus metrics from the backend at `/metrics`.
+- [ ] Add Prometheus to `docker-compose.yml`, configured to scrape the backend.
+- [ ] Add Grafana connected to Prometheus.
+- [ ] Add a basic dashboard: current status per service, historical latency, and availability percentage.
 
-**Objetivo:** cuando algo falla, obtener una explicación en lenguaje natural.
+**Deliverable:** A Grafana dashboard shows the real state of monitored services.
 
-- [ ] Añadir servicio de Ollama a `docker-compose.yml`, con modelo descargado (ej. `llama3.1:8b`).
-- [ ] Lógica de detección de incidente (N fallos seguidos → crear `Incident`).
-- [ ] Construcción del prompt de contexto (últimos checks, nombre del servicio, etc.).
-- [ ] Cliente HTTP hacia la API de Ollama para pedir el resumen.
-- [ ] Guardar el resumen en el `Incident` y exponerlo vía API.
-- [ ] Endpoint para listar incidentes (activos e históricos) con su resumen de IA.
+## Phase 3 - Local AI Incident Summaries
 
-**Entregable:** al simular una caída de un servicio, Centinela genera y guarda un resumen legible del incidente.
+**Goal:** When something fails, generate a natural-language explanation.
 
-## Fase 4 — Kubernetes
+- [ ] Add Ollama as a service in `docker-compose.yml`, with a documented local model such as `llama3.1:8b`.
+- [ ] Add incident-detection logic: N consecutive failures create an `Incident`.
+- [ ] Build the context prompt from recent checks, service name, timestamps, and status data.
+- [ ] Add an HTTP client for Ollama's internal API.
+- [ ] Store the generated summary on the `Incident` and expose it through the API.
+- [ ] Add an endpoint to list active and historical incidents with their AI summaries.
 
-**Objetivo:** correr todo el stack en un clúster local, no solo en Docker Compose.
+**Deliverable:** When a service outage is simulated, Centinela creates and stores a readable incident summary.
 
-- [ ] Manifiestos de Deployment/Service para: backend, Postgres, Ollama, Prometheus, Grafana.
-- [ ] ConfigMaps/Secrets para configuración y credenciales.
-- [ ] Probar el stack completo en Minikube o Kind.
-- [ ] Documentar en el README cómo levantar todo con `kubectl apply`.
+## Phase 4 - Kubernetes
 
-**Entregable:** el proyecto corre completo en un clúster de Kubernetes local, con un solo set de comandos documentado.
+**Goal:** Run the full stack in a local Kubernetes cluster, not only in Docker Compose.
 
-## Fase 5 — CI
+- [ ] Add Deployment and Service manifests for backend, PostgreSQL, Ollama, Prometheus, and Grafana.
+- [ ] Add ConfigMaps and Secrets for configuration and credentials.
+- [ ] Test the full stack in Minikube or Kind.
+- [ ] Document in `README.md` how to start everything with `kubectl apply`.
 
-**Objetivo:** validación automática antes de integrar cambios.
+**Deliverable:** The full project runs in a local Kubernetes cluster with one documented command flow.
 
-- [ ] Pipeline de GitHub Actions: lint + tests en cada push/PR.
-- [ ] Build de la imagen Docker del backend como parte del pipeline.
-- [ ] (Opcional) publicar la imagen en un registry (Docker Hub o GitHub Container Registry).
+## Phase 5 - CI
 
-**Entregable:** badge de CI pasando en el README, pipeline visible en GitHub Actions.
+**Goal:** Run automated validation before changes are integrated.
 
-## Fases futuras (opcionales, fuera del alcance inicial)
+- [ ] Add a GitHub Actions pipeline for linting and tests on every push or pull request.
+- [ ] Build the backend Docker image as part of the pipeline.
+- [ ] Optional: publish the image to Docker Hub or GitHub Container Registry.
 
-- Alertas por email/Slack cuando se abre un incidente.
-- Migración de despliegue a un cloud real (AWS/GCP capa gratuita).
-- Autenticación multi-usuario.
-- GitOps (ArgoCD) para despliegue continuo real al clúster.
+**Deliverable:** A passing CI badge appears in `README.md`, and the pipeline is visible in GitHub Actions.
+
+## Future Optional Phases
+
+- Email or Slack alerts when an incident opens.
+- Migration to a real cloud deployment on a free or low-cost tier.
+- Multi-user authentication.
+- GitOps with Argo CD for continuous deployment to the cluster.

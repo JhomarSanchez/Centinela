@@ -1,42 +1,55 @@
-# AGENTS.md — Instrucciones para agentes de IA
+# AGENTS.md - Instructions for AI Agents
 
-Este archivo es la fuente principal de instrucciones para cualquier agente de IA (Codex, Claude Code, Cursor, etc.) que trabaje en este repositorio. Léelo completo antes de escribir código.
+This file is the primary source of instructions for any AI agent working in this repository. Read it fully before writing code.
 
-## Contexto importante
-- Prioriza claridad sobre "cleverness". Código simple, bien comentado, sobre soluciones ingeniosas difíciles de entender.
-- Explica brevemente el *por qué* de decisiones no triviales (en comentarios de código o en el mensaje de commit), no solo el qué.
-- No asumas conocimiento avanzado previo. Si usas un patrón o herramienta poco común, añade una línea explicando para qué sirve.
-- Avanza **por fases**, según `ROADMAP.md`. No implementes la Fase 3 si la Fase 1 no está terminada y funcionando.
+## Project Context
 
-## Misión del proyecto
+- Prefer clarity over cleverness. Simple, readable code is better than a clever solution that is hard to explain.
+- Explain the reason behind non-obvious decisions, either in short code comments or in the commit message.
+- Assume the user is learning. If you introduce an uncommon pattern or tool, add one plain-language sentence explaining what it is for.
+- Work by phase, following `docs/ROADMAP.md`. Do not implement a later phase until the current phase is complete and working.
 
-Ver `README.md` y `ARCHITECTURE.md` para el contexto completo. En resumen: una plataforma de monitoreo de servicios que usa un LLM local (Ollama) para generar resúmenes de incidentes en lenguaje natural.
+## Project Mission
 
-## Reglas no negociables
+Centinela is a personal service-monitoring platform. It registers services, runs periodic health checks, stores availability history, exposes metrics, and later uses a local LLM through Ollama to generate natural-language incident summaries.
 
-1. **No saltarse fases.** Sigue el orden de `docs/ROADMAP.md`. Si crees que hay una mejor secuencia, propónlo — no lo cambies unilateralmente.
-2. **Actualiza `docs/DECISIONS_LOG.md`** cada vez que: termines una tarea/fase, tomes una decisión de arquitectura, encuentres un problema que requirió un workaround, o cambies algo ya decidido. Usa la plantilla que está en ese archivo.
-3. **Nunca commitees secretos.** Credenciales, API keys y tokens van en `.env` (ignorado por git). Usa `.env.example` como plantilla pública.
-4. **Todo servicio corre en contenedor.** Nada de "instala esto localmente sin Docker", salvo herramientas de desarrollo (linters, etc.).
-5. **Tests antes de dar por terminada una tarea.** Aunque sean tests básicos — un proyecto de portafolio sin tests resta puntos.
-6. **Commits pequeños y descriptivos**, formato: `fase-N: descripción corta del cambio`.
+Read `README.md` for the product overview and `docs/ARCHITECTURE.md` for the system design.
 
-## Stack y convenciones de código
+## Current State
 
-- **Backend:** Python 3.11+, FastAPI, SQLAlchemy (ORM), Pydantic para validación, Alembic para migraciones.
-- **Estilo:** PEP8, type hints en funciones públicas, docstrings breves en módulos y funciones no triviales.
-- **Estructura de carpetas propuesta:**
+- Phase 0 is complete: planning, architecture, roadmap, and AI context files exist.
+- The next implementation work is Phase 1: basic backend with FastAPI, PostgreSQL persistence, health checks, Docker Compose, and basic tests.
+- If the roadmap and code disagree, treat `docs/ROADMAP.md` and `docs/DECISIONS_LOG.md` as the sources of truth, then update them once the discrepancy is resolved.
 
-```
+## Non-Negotiable Rules
+
+1. **Do not skip phases.** Follow `docs/ROADMAP.md`. If a better sequence seems necessary, propose it first instead of changing the plan silently.
+2. **Update `docs/DECISIONS_LOG.md`** whenever you finish a meaningful task or phase, make an architecture decision, apply a workaround, or change a previous decision. Use the template in that file.
+3. **Never commit secrets.** Credentials, API keys, and tokens belong in `.env`, which is ignored by git. Public placeholders belong in `.env.example`.
+4. **Every service must run in a container.** Local installation is acceptable only for development tools such as linters, test runners, or editors.
+5. **Run tests before calling a coding task done.** Even basic happy-path tests matter. For documentation-only tasks, validate links, formatting, and repository hygiene instead.
+6. **Use small, descriptive commits** when commits are requested. Format: `phase-N: short description`.
+
+## Stack and Code Conventions
+
+- **Backend:** Python 3.11+, FastAPI, SQLAlchemy ORM, Pydantic for validation, Alembic for migrations.
+- **Testing:** Prefer `pytest` when tests are introduced unless a later decision changes this.
+- **Style:** Follow PEP 8, use type hints in public functions, and add brief docstrings for modules and non-trivial functions.
+- **Documentation language:** Keep repository documentation in English unless the user explicitly requests otherwise.
+- **Local AI:** Ollama must run as a separate service. The backend talks to Ollama over HTTP; do not embed the model inside the API process.
+
+## Proposed Repository Structure
+
+```text
 centinela/
 ├── backend/
 │   ├── app/
 │   │   ├── main.py
 │   │   ├── api/          # routers/endpoints
-│   │   ├── models/       # modelos SQLAlchemy + esquemas Pydantic
-│   │   ├── services/     # lógica de negocio (health checks, IA, etc.)
-│   │   ├── scheduler/    # jobs periódicos
-│   │   └── ai/           # cliente de Ollama, construcción de prompts
+│   │   ├── models/       # SQLAlchemy models + Pydantic schemas
+│   │   ├── services/     # business logic such as health checks
+│   │   ├── scheduler/    # periodic jobs
+│   │   └── ai/           # Ollama client and prompt building
 │   ├── tests/
 │   ├── Dockerfile
 │   └── requirements.txt
@@ -58,22 +71,28 @@ centinela/
 └── CLAUDE.md
 ```
 
-> Nota de convención: `README.md`, `AGENTS.md` y `CLAUDE.md` viven en la raíz porque las herramientas de IA y Git los buscan ahí por defecto. Todo lo demás (arquitectura, roadmap, bitácora) vive en `docs/` para no saturar la raíz del repo.
+Root-level `README.md`, `AGENTS.md`, and `CLAUDE.md` are kept at the root because developer tools and AI coding agents commonly look there first. Deeper project context lives under `docs/`.
 
-- **IA local:** Ollama expuesto como servicio separado (contenedor propio); el backend le habla vía HTTP a su API interna. No incrustar el modelo dentro del proceso de la API.
+## Definition of Done
 
-## Definición de "hecho" (Definition of Done) por tarea
+A coding task is done when:
 
-Una tarea se considera terminada cuando:
+- [ ] The relevant service runs locally without errors through Docker or Docker Compose once those files exist for the current phase.
+- [ ] At least one happy-path test covers the new behavior.
+- [ ] `docs/DECISIONS_LOG.md` is updated when the task involved a meaningful decision, workaround, or completed milestone.
+- [ ] The relevant checklist in `docs/ROADMAP.md` is updated.
+- [ ] `README.md` reflects any change in how to run or use the project.
 
-- [ ] El código corre localmente sin errores (`docker-compose up`).
-- [ ] Hay al menos un test que cubre el caso feliz.
-- [ ] Se actualizó `docs/DECISIONS_LOG.md` si hubo una decisión relevante.
-- [ ] Se actualizó el checklist correspondiente en `docs/ROADMAP.md`.
-- [ ] El README refleja cualquier cambio en cómo correr el proyecto.
+A documentation-only task is done when:
 
-## Antes de empezar cualquier tarea
+- [ ] Internal links point to existing files.
+- [ ] Markdown is readable as UTF-8.
+- [ ] Any repository rules mentioned in the docs are backed by actual files when practical.
+- [ ] `docs/DECISIONS_LOG.md` records the documentation/context change if it affects future agents.
 
-1. Lee `docs/ROADMAP.md` para saber en qué fase estamos y qué sigue.
-2. Lee las últimas 2-3 entradas de `docs/DECISIONS_LOG.md` para tener contexto reciente.
-3. Si algo del alcance no está claro, pregunta antes de asumir.
+## Before Starting Any Task
+
+1. Read `docs/ROADMAP.md` to confirm the current phase and next step.
+2. Read the latest 2-3 entries in `docs/DECISIONS_LOG.md`.
+3. Read `docs/ARCHITECTURE.md` before changing design, data flow, deployment, or service boundaries.
+4. Ask only if the scope is still unclear after reading the repository context.

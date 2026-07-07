@@ -62,7 +62,7 @@ Phased development plan. **Do not move to the next phase until the current phase
 - [ ] Add Deployment and Service manifests for backend, PostgreSQL, Ollama, Prometheus, and Grafana.
 - [ ] Add ConfigMaps and Secrets for configuration and credentials.
 - [ ] Test the full stack in Minikube or Kind.
-- [ ] Document in `README.md` how to start everything with `kubectl apply`.
+- [ ] Document in `README` how to start everything with `kubectl apply`.
 
 **Deliverable:** The full project runs in a local Kubernetes cluster with one documented command flow.
 
@@ -74,7 +74,7 @@ Phased development plan. **Do not move to the next phase until the current phase
 - [ ] Build the backend Docker image as part of the pipeline.
 - [ ] Optional: publish the image to Docker Hub or GitHub Container Registry.
 
-**Deliverable:** A passing CI badge appears in `README.md`, and the pipeline is visible in GitHub Actions.
+**Deliverable:** A passing CI badge appears in `README`, and the pipeline is visible in GitHub Actions.
 
 ## Future Optional Phases
 

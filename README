@@ -1,38 +1,65 @@
+<div align="center">
+
 # Centinela
 
-**A local-first monitoring platform that turns service outages into readable incident summaries.**
+**Local-first service monitoring with human-readable incident summaries.**
 
-Centinela watches the health of services you care about, stores their availability history, exposes operational metrics, and will use a local LLM through Ollama to explain incidents in plain language.
+Centinela watches APIs, websites, and internal endpoints, stores their health history, exposes metrics, and will use a local LLM through Ollama to explain outages in plain language.
 
-The project is being built as a portfolio-grade backend and DevOps system: practical enough to use for personal infrastructure, but scoped clearly enough to show clean engineering decisions.
+<p>
+  <img alt="Project status: planning" src="https://img.shields.io/badge/status-planning-4C6FFF?style=for-the-badge">
+  <img alt="Current phase: Phase 1 next" src="https://img.shields.io/badge/phase-1%20next-00A896?style=for-the-badge">
+  <img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white">
+  <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-planned-009688?style=for-the-badge&logo=fastapi&logoColor=white">
+  <img alt="Docker" src="https://img.shields.io/badge/Docker-planned-2496ED?style=for-the-badge&logo=docker&logoColor=white">
+  <img alt="License: Apache 2.0" src="https://img.shields.io/badge/license-Apache--2.0-2D3748?style=for-the-badge">
+</p>
 
-## Why This Exists
+<p>
+  <a href="#why-centinela">Why</a> ·
+  <a href="#what-it-will-do">Features</a> ·
+  <a href="#planned-user-flow">User Flow</a> ·
+  <a href="#architecture">Architecture</a> ·
+  <a href="#project-status">Status</a> ·
+  <a href="#repository-map">Docs</a>
+</p>
 
-Most small personal projects fail quietly. A site goes down, an API starts timing out, or a dependency becomes flaky, and you only notice when you manually check it.
+</div>
 
-Centinela is designed to answer three simple questions:
+---
 
-- Is this service up right now?
-- How has it behaved over time?
-- When it fails, what happened in human-readable terms?
+## Why Centinela
 
-Instead of stopping at a red `DOWN` label, the long-term goal is to combine classic monitoring with local AI-generated incident summaries.
+Small services often fail quietly. A health endpoint starts timing out, a personal API goes down, or a dependency becomes flaky, and you only notice after checking manually.
 
-## What Centinela Will Do
+Centinela is designed to answer the questions that matter first:
 
-- Register services and endpoints to monitor.
-- Run periodic HTTP health checks.
-- Store status, latency, timestamps, and HTTP response data.
-- Expose API endpoints for service management and check history.
-- Export Prometheus metrics for dashboards.
-- Show service health in Grafana.
-- Detect incidents after repeated failures.
-- Generate incident summaries with Ollama running locally.
-- Run first with Docker Compose, then in a local Kubernetes cluster.
+| Question | Centinela's role |
+|---|---|
+| Is this service up right now? | Run scheduled health checks and store the latest state. |
+| How has it behaved over time? | Keep check history with status, latency, timestamps, and HTTP response data. |
+| What happened when it failed? | Generate a readable incident summary with a local LLM in a later phase. |
 
-## Current Status
+The goal is not another giant observability platform. It is a focused, portfolio-grade monitoring system that demonstrates backend engineering, DevOps, observability, and local AI integration in one coherent project.
 
-**Phase 0 is complete. Phase 1 is next.**
+## What It Will Do
+
+| Capability | Phase | Status |
+|---|---:|---|
+| Register services and endpoints to monitor | 1 | Planned |
+| Run periodic HTTP health checks | 1 | Planned |
+| Persist service and check history in PostgreSQL | 1 | Planned |
+| Expose service-management and history APIs | 1 | Planned |
+| Export Prometheus metrics | 2 | Planned |
+| Visualize service health in Grafana | 2 | Planned |
+| Detect incidents after repeated failures | 3 | Planned |
+| Generate local AI incident summaries with Ollama | 3 | Planned |
+| Deploy the full stack to local Kubernetes | 4 | Planned |
+| Add automated validation with GitHub Actions | 5 | Planned |
+
+## Project Status
+
+> **Phase 0 is complete. Phase 1 is next.**
 
 Planning, architecture, roadmap, and AI-agent context are in place. There is no runnable application code yet.
 
@@ -41,7 +68,7 @@ The next milestone is the basic backend:
 - FastAPI project structure.
 - PostgreSQL persistence.
 - Service registration endpoints.
-- Periodic health checks.
+- Periodic health checks with APScheduler.
 - Docker Compose for local execution.
 - Basic tests.
 
@@ -49,25 +76,16 @@ See [`docs/ROADMAP.md`](./docs/ROADMAP.md) for the full phased plan.
 
 ## Planned User Flow
 
-Once Phase 1 is implemented, the core flow will look like this:
-
-```text
-Register a service URL
-        |
-        v
-Centinela checks it periodically
-        |
-        v
-Each check is stored in PostgreSQL
-        |
-        v
-You query the API for health history
-        |
-        v
-Later phases expose dashboards and AI incident summaries
+```mermaid
+flowchart LR
+    A[Register a service URL] --> B[Centinela checks it periodically]
+    B --> C[Each check is stored in PostgreSQL]
+    C --> D[Query health history through the API]
+    D --> E[View metrics and dashboards]
+    D --> F[Read AI incident summaries]
 ```
 
-Target example:
+Target API shape:
 
 ```bash
 # Register a service
@@ -80,11 +98,11 @@ curl -X POST http://localhost:8000/services \
 curl http://localhost:8000/services/1/checks
 ```
 
-These commands are examples of the intended interface, not runnable commands yet.
+These commands document the intended interface. They are not runnable until Phase 1 is implemented.
 
-## Architecture at a Glance
+## Architecture
 
-Phase 1 starts small: one FastAPI backend, PostgreSQL, and an in-process scheduler. Later phases add Prometheus, Grafana, Ollama, and Kubernetes.
+Phase 1 starts deliberately small: one FastAPI backend, PostgreSQL, and an in-process scheduler. Later phases add Prometheus, Grafana, Ollama, Kubernetes, and CI.
 
 ```mermaid
 flowchart LR
@@ -98,7 +116,7 @@ flowchart LR
     Scheduler -. Phase 3 .-> Ollama[Ollama local LLM]
 ```
 
-For more detail, read [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
+Read [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) for the system design and decision context.
 
 ## Tech Stack
 
@@ -116,35 +134,37 @@ For more detail, read [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
 | Orchestration | Minikube or Kind |
 | CI | GitHub Actions |
 
-## Repository Guide
-
-- [`AGENTS.md`](./AGENTS.md) - primary instructions for AI coding agents.
-- [`CLAUDE.md`](./CLAUDE.md) - Claude Code-specific notes.
-- [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) - system design and technical decisions.
-- [`docs/ROADMAP.md`](./docs/ROADMAP.md) - phased delivery plan.
-- [`docs/DECISIONS_LOG.md`](./docs/DECISIONS_LOG.md) - historical decision log.
-- [`.env.example`](./.env.example) - safe environment variable template.
-
 ## How to Use This Repo Today
 
 Until Phase 1 lands, this repository is best read as a project blueprint:
 
-1. Start with this README for the product idea.
-2. Read [`docs/ROADMAP.md`](./docs/ROADMAP.md) to understand the delivery sequence.
-3. Read [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) to understand the planned system.
-4. Read [`docs/DECISIONS_LOG.md`](./docs/DECISIONS_LOG.md) to see why key choices were made.
+1. Start here for the product idea and planned user experience.
+2. Read [`docs/ROADMAP.md`](./docs/ROADMAP.md) for the delivery sequence.
+3. Read [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) for the system design.
+4. Read [`docs/DECISIONS_LOG.md`](./docs/DECISIONS_LOG.md) for the reasoning behind major choices.
 
-Once the backend exists, this section will be replaced with real setup and run commands.
+When the backend exists, this section will become a real quick start with setup, run, and test commands.
+
+## Repository Map
+
+| Path | Purpose |
+|---|---|
+| [`AGENTS.md`](./AGENTS.md) | Primary instructions for AI coding agents. |
+| [`CLAUDE.md`](./CLAUDE.md) | Claude Code-specific notes. |
+| [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) | System design and technical decisions. |
+| [`docs/ROADMAP.md`](./docs/ROADMAP.md) | Phased delivery plan. |
+| [`docs/DECISIONS_LOG.md`](./docs/DECISIONS_LOG.md) | Historical decision log. |
+| [`.env.example`](./.env.example) | Safe environment variable template. |
 
 ## Project Principles
 
-- Build in small phases and keep each phase working before moving on.
-- Prefer clear, explainable code over clever abstractions.
-- Keep every service containerized.
+- Build in small, working phases.
+- Prefer clear and explainable code over clever abstractions.
+- Keep services containerized.
 - Avoid committing secrets.
-- Use local AI as infrastructure, not as an external paid dependency.
-- Keep the project useful for learning, portfolio review, and eventual personal use.
+- Treat local AI as infrastructure, not as a paid external dependency.
+- Make the project useful for learning, portfolio review, and eventual personal use.
 
 ## License
 
-This project is licensed under the terms in [`LICENSE`](./LICENSE).
+Licensed under the [Apache License 2.0](./LICENSE).

@@ -13,7 +13,7 @@ This file is the primary source of instructions for any AI agent working in this
 
 Centinela is a personal service-monitoring platform. It registers services, runs periodic health checks, stores availability history, exposes metrics, and later uses a local LLM through Ollama to generate natural-language incident summaries.
 
-Read `README.md` for the product overview and `docs/ARCHITECTURE.md` for the system design.
+Read `README` for the product overview and `docs/ARCHITECTURE.md` for the system design.
 
 ## Current State
 
@@ -66,12 +66,12 @@ centinela/
 │   ├── ARCHITECTURE.md
 │   ├── ROADMAP.md
 │   └── DECISIONS_LOG.md
-├── README.md
+├── README
 ├── AGENTS.md
 └── CLAUDE.md
 ```
 
-Root-level `README.md`, `AGENTS.md`, and `CLAUDE.md` are kept at the root because developer tools and AI coding agents commonly look there first. Deeper project context lives under `docs/`.
+Root-level `README`, `AGENTS.md`, and `CLAUDE.md` are kept at the root because developer tools and AI coding agents commonly look there first. Deeper project context lives under `docs/`.
 
 ## Definition of Done
 
@@ -81,7 +81,7 @@ A coding task is done when:
 - [ ] At least one happy-path test covers the new behavior.
 - [ ] `docs/DECISIONS_LOG.md` is updated when the task involved a meaningful decision, workaround, or completed milestone.
 - [ ] The relevant checklist in `docs/ROADMAP.md` is updated.
-- [ ] `README.md` reflects any change in how to run or use the project.
+- [ ] `README` reflects any change in how to run or use the project.
 
 A documentation-only task is done when:
 

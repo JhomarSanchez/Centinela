@@ -23,6 +23,24 @@ Historical project log: what changed, what was decided, and why. This file gives
 
 ---
 
+## 2026-07-07 - README visual polish
+
+**Phase:** Phase 0 - Planning
+
+**What changed:** The root `README` was redesigned as a more attractive repository landing page. It now includes a centered project header, status and stack badges, a navigation strip, feature/status tables, Mermaid diagrams, a clearer architecture section, and a repository map.
+
+**Decisions made and why:**
+- The project now treats the root file as `README` without an extension, matching the repository's current file layout and the user's preference.
+- Badges were added for project status, current phase, Python, FastAPI, Docker, and Apache 2.0 licensing to make the repository easier to scan.
+- The README keeps planned commands clearly marked as non-runnable until Phase 1 exists, so the presentation is attractive without being misleading.
+
+**Alternatives considered:**
+- A simpler text-only README was rejected because the repository landing page should quickly communicate value, stack, status, and direction to visitors.
+
+**Open follow-ups / TODO:**
+- Replace planned usage examples with real commands after Phase 1 is implemented.
+- Add real CI and coverage badges once those systems exist.
+
 ## 2026-07-07 - Public README improved
 
 **Phase:** Phase 0 - Planning

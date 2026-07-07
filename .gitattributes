@@ -11,3 +11,4 @@
 .editorconfig text eol=lf working-tree-encoding=UTF-8
 .gitattributes text eol=lf working-tree-encoding=UTF-8
 .gitignore text eol=lf working-tree-encoding=UTF-8
+README text eol=lf working-tree-encoding=UTF-8

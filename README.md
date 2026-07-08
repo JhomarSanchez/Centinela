@@ -8,14 +8,20 @@ Centinela watches APIs, websites, and internal endpoints, stores their health hi
 and will use a local LLM through Ollama to explain outages in plain language.
 
 <p>
-  <img alt="Phase 3 complete" src="https://img.shields.io/badge/phase%203-complete-2ea44f?style=flat-square">
+  <a href="https://github.com/JhomarSanchez/Centinela/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/JhomarSanchez/Centinela/actions/workflows/ci.yml/badge.svg"></a>
+  <img alt="All phases complete" src="https://img.shields.io/badge/roadmap-all%20phases%20complete-2ea44f?style=flat-square">
+  <img alt="License: Apache 2.0" src="https://img.shields.io/badge/license-Apache--2.0-2D3748?style=flat-square">
+</p>
+
+<p>
   <img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white">
   <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white">
   <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white">
   <img alt="Prometheus" src="https://img.shields.io/badge/Prometheus-E6522C?style=flat-square&logo=prometheus&logoColor=white">
   <img alt="Grafana" src="https://img.shields.io/badge/Grafana-F46800?style=flat-square&logo=grafana&logoColor=white">
+  <img alt="Ollama" src="https://img.shields.io/badge/Ollama-local%20LLM-000000?style=flat-square&logo=ollama&logoColor=white">
   <img alt="Docker" src="https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white">
-  <img alt="License: Apache 2.0" src="https://img.shields.io/badge/license-Apache--2.0-2D3748?style=flat-square">
+  <img alt="Kubernetes" src="https://img.shields.io/badge/Kubernetes-326CE5?style=flat-square&logo=kubernetes&logoColor=white">
 </p>
 
 <p>
@@ -24,6 +30,7 @@ and will use a local LLM through Ollama to explain outages in plain language.
   <a href="#how-health-checks-work">Health Checks</a> ·
   <a href="#dashboards-and-metrics">Dashboards</a> ·
   <a href="#ai-incident-summaries">AI Incidents</a> ·
+  <a href="#run-on-kubernetes">Kubernetes</a> ·
   <a href="#running-the-tests">Tests</a> ·
   <a href="#architecture">Architecture</a> ·
   <a href="#roadmap">Roadmap</a>
@@ -47,18 +54,18 @@ It is not another giant observability platform — it is a focused, portfolio-gr
 
 ## What Works Today
 
-Phases 1, 2, and 3 are implemented and tested:
+Every planned phase is implemented, tested, and verified:
 
-- Register, list, update, and delete monitored services through a REST API.
-- A background scheduler checks each service on its own interval.
-- Every result (`up`, `degraded`, or `down`) is persisted in PostgreSQL.
-- Check history is queryable per service, with automatic retention cleanup.
-- Prometheus scrapes health-check metrics from the backend's `/metrics` endpoint.
-- A provisioned Grafana dashboard shows current status, availability %, latency, and open incidents — no manual setup.
-- Repeated failures open an **incident**, and a local LLM (Ollama) writes a plain-language summary of what happened.
-- Incidents (open and historical) are queryable through the API.
-- The whole stack runs with one Docker Compose command.
-- Write endpoints are protected with an `X-API-Key` header.
+| | Capability |
+|---|---|
+| 🩺 | **Health checks** — register any URL and a background scheduler probes it on its own interval. |
+| 🗄️ | **History** — every result (`up`, `degraded`, `down`) lands in PostgreSQL, with automatic retention cleanup. |
+| 📈 | **Dashboards** — Prometheus scrapes `/metrics`; a pre-provisioned Grafana dashboard shows status, availability %, latency, and open incidents with zero manual setup. |
+| 🤖 | **AI incident summaries** — repeated failures open an *incident* and a local LLM (Ollama) explains it in plain language. No cloud APIs, everything stays on your machine. |
+| 🐳 | **One-command startup** — the whole stack runs with `docker compose up`. |
+| ☸️ | **Kubernetes-ready** — kustomize manifests deploy the same stack to a local cluster (kind/Minikube). |
+| ✅ | **CI** — GitHub Actions lints, runs the 69-test suite, builds the image, and validates the manifests on every push. |
+| 🔐 | **Guarded writes** — mutating endpoints require an `X-API-Key` header. |
 
 ## Quick Start
 
@@ -195,6 +202,34 @@ The provisioned Grafana dashboard (**Centinela - Service Health**) shows the cur
 
 On startup the backend restores the last known status of every service from the database, so restarting the stack never leaves the dashboard empty.
 
+## Run on Kubernetes
+
+The same stack deploys to a local Kubernetes cluster from the kustomize manifests in [`k8s/`](./k8s):
+
+```bash
+# 1. Create a local cluster (kind shown; Minikube works the same way)
+kind create cluster --name centinela
+
+# 2. Build the backend image and load the images into the cluster
+docker build -t centinela-backend:0.3.0 ./backend
+kind load docker-image centinela-backend:0.3.0 postgres:16-alpine \
+  prom/prometheus:v3.5.0 grafana/grafana:12.0.2 ollama/ollama:latest \
+  --name centinela
+
+# 3. Deploy everything
+kubectl apply -k k8s/overlays/local
+
+# 4. Wait for the pods, then reach the API and Grafana with port-forwards
+kubectl -n centinela rollout status deployment/backend
+kubectl -n centinela port-forward svc/backend 8000:8000
+kubectl -n centinela port-forward svc/grafana 3000:3000
+
+# One-time: pull the LLM inside the cluster (or set OLLAMA_ENABLED=false)
+kubectl -n centinela exec deploy/ollama -- ollama pull llama3.1:8b
+```
+
+`k8s/base/` defines the five components (Deployments, Services, PVCs, generated ConfigMaps and Secrets); `k8s/overlays/local/` shows the overlay pattern with local tweaks. The secret values are `change-me` placeholders — override them in an overlay for anything beyond a throwaway cluster. Tear everything down with `kind delete cluster --name centinela`.
+
 ## Running the Tests
 
 Tests run against an in-memory SQLite database, so they need no containers and finish in under a second.
@@ -209,7 +244,7 @@ ruff check .
 
 ## Architecture
 
-The backend keeps a layered structure (routes → services → models) with PostgreSQL and an in-process APScheduler. Prometheus scrapes the backend's `/metrics` and Grafana visualizes it (Phase 2). Ollama generates incident summaries over the internal network — it never touches the database and is never exposed outside Compose (Phase 3). Later phases add Kubernetes and CI.
+The backend keeps a layered structure (routes → services → models) with PostgreSQL and an in-process APScheduler. Prometheus scrapes the backend's `/metrics` and Grafana visualizes it. Ollama generates incident summaries over the internal network — it never touches the database and is never exposed outside the stack. The same topology ships as Docker Compose for daily use and as kustomize manifests for Kubernetes, and GitHub Actions validates every change.
 
 ```mermaid
 flowchart LR
@@ -234,10 +269,10 @@ See [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) for the full design and dec
 | 1 | FastAPI backend, PostgreSQL, health checks, Docker Compose, tests | ✅ Done |
 | 2 | Prometheus metrics and Grafana dashboards | ✅ Done |
 | 3 | Incident detection and local AI summaries with Ollama | ✅ Done |
-| 4 | Local Kubernetes deployment (Minikube/Kind) | 🔜 Next |
-| 5 | CI with GitHub Actions | Planned |
+| 4 | Local Kubernetes deployment (kind/Minikube) | ✅ Done |
+| 5 | CI with GitHub Actions | ✅ Done |
 
-Details in [`docs/ROADMAP.md`](./docs/ROADMAP.md).
+All planned phases are shipped. Candidate future work: email/Slack alerts on incidents, a real cloud deployment, multi-user auth, GitOps with Argo CD. Details in [`docs/ROADMAP.md`](./docs/ROADMAP.md).
 
 ## Repository Map
 
@@ -245,6 +280,8 @@ Details in [`docs/ROADMAP.md`](./docs/ROADMAP.md).
 |---|---|
 | [`backend/`](./backend) | FastAPI application, migrations, and tests. |
 | [`observability/`](./observability) | Prometheus scrape config and Grafana provisioning + dashboards. |
+| [`k8s/`](./k8s) | Kustomize manifests: base + local overlay for kind/Minikube. |
+| [`.github/workflows/`](./.github/workflows) | CI pipeline: lint, tests, image build, manifest validation. |
 | [`docker-compose.yml`](./docker-compose.yml) | Local stack: backend + PostgreSQL + Prometheus + Grafana + Ollama. |
 | [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) | System design and technical decisions. |
 | [`docs/ROADMAP.md`](./docs/ROADMAP.md) | Phased delivery plan. |

@@ -54,6 +54,16 @@ Phase 3 adds incident tracking and local AI summaries:
 - The AI is strictly best-effort: if Ollama is disabled, unreachable, or the model is not pulled yet, the incident still opens with `ai_summary = NULL`, and each later `down` check retries the summary. Incident bookkeeping never depends on the LLM.
 - Incidents are exposed at `GET /incidents` (filter `?active=true|false`) and `GET /services/{id}/incidents`, and on the dashboard via the `centinela_incident_open` and `centinela_incidents_total` metrics.
 
+## Phase 4-5 Architecture (implemented)
+
+The full stack also runs in a local Kubernetes cluster (tested with kind), defined as kustomize manifests under `k8s/`:
+
+- `k8s/base/` holds Deployments, Services, and PersistentVolumeClaims for the five components, plus generated ConfigMaps (shared settings, Prometheus scrape config, Grafana provisioning) and a Secret with `change-me` placeholders for local use.
+- `k8s/overlays/local/` shows the kustomize overlay pattern: it reuses the base and merges a faster scheduler tick for demos. Real deployments would override the secrets here.
+- Service DNS names match the Compose service names (`postgres`, `backend`, `ollama`, `prometheus`), so the Prometheus and Grafana configs are shared between both environments verbatim.
+- The backend runs a single replica on purpose: the scheduler lives inside the API process, and two replicas would duplicate every health check. Splitting the scheduler into its own Deployment is the known path if scaling is ever needed.
+- CI (GitHub Actions, `.github/workflows/ci.yml`) lints, tests, builds the Docker image, and renders both kustomize overlays on every push and pull request.
+
 ## Target Architecture
 
 Later phases add observability, local AI incident summaries, and Kubernetes deployment.

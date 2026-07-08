@@ -4,10 +4,9 @@ Phased development plan. **Do not move to the next phase until the current phase
 
 ## Current Status
 
-- **Current phase:** Phase 4 - Kubernetes.
-- **Completed:** Phase 0 - Planning. Phase 1 - Basic backend. Phase 2 - Classic observability. Phase 3 - Local AI incident summaries.
-- **Next step:** Write Kubernetes manifests for the full stack and test them in Minikube or Kind.
-- **Important constraint:** Do not implement CI before Phase 4 is working.
+- **Current phase:** All planned phases (0-5) are complete.
+- **Completed:** Phase 0 - Planning. Phase 1 - Basic backend. Phase 2 - Classic observability. Phase 3 - Local AI incident summaries. Phase 4 - Kubernetes. Phase 5 - CI.
+- **Next step:** Optional future phases only (alerts, cloud deployment, multi-user auth, GitOps).
 
 ## Phase 0 - Planning Complete
 
@@ -59,10 +58,10 @@ Phased development plan. **Do not move to the next phase until the current phase
 
 **Goal:** Run the full stack in a local Kubernetes cluster, not only in Docker Compose.
 
-- [ ] Add Deployment and Service manifests for backend, PostgreSQL, Ollama, Prometheus, and Grafana.
-- [ ] Add ConfigMaps and Secrets for configuration and credentials.
-- [ ] Test the full stack in Minikube or Kind.
-- [ ] Document in `README` how to start everything with `kubectl apply`.
+- [x] Add Deployment and Service manifests for backend, PostgreSQL, Ollama, Prometheus, and Grafana.
+- [x] Add ConfigMaps and Secrets for configuration and credentials.
+- [x] Test the full stack in Minikube or Kind.
+- [x] Document in `README` how to start everything with `kubectl apply`.
 
 **Deliverable:** The full project runs in a local Kubernetes cluster with one documented command flow.
 
@@ -70,9 +69,9 @@ Phased development plan. **Do not move to the next phase until the current phase
 
 **Goal:** Run automated validation before changes are integrated.
 
-- [ ] Add a GitHub Actions pipeline for linting and tests on every push or pull request.
-- [ ] Build the backend Docker image as part of the pipeline.
-- [ ] Optional: publish the image to Docker Hub or GitHub Container Registry.
+- [x] Add a GitHub Actions pipeline for linting and tests on every push or pull request.
+- [x] Build the backend Docker image as part of the pipeline.
+- [ ] Optional: publish the image to Docker Hub or GitHub Container Registry (deliberately skipped for now; the image is trivial to build locally).
 
 **Deliverable:** A passing CI badge appears in `README`, and the pipeline is visible in GitHub Actions.
 

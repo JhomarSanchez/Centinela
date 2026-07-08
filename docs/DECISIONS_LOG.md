@@ -23,6 +23,29 @@ Historical project log: what changed, what was decided, and why. This file gives
 
 ---
 
+## 2026-07-08 - Phases 4 and 5 implemented: Kubernetes manifests and GitHub Actions CI
+
+**Phase:** Phase 4 - Kubernetes / Phase 5 - CI
+
+**What changed:** The full stack now deploys to a local Kubernetes cluster from kustomize manifests under `k8s/` (base + `local` overlay), and `.github/workflows/ci.yml` runs lint, the test suite, a Docker image build, and kustomize rendering on every push and pull request. Verified end to end against a kind cluster (`kind create cluster --name centinela`): all five deployments rolled out, a service was registered through the port-forwarded API, checks accumulated, Prometheus scraped the backend Service, and Grafana came up provisioned. The README gained a "Run on Kubernetes" section, a CI badge, and a capability table.
+
+**Decisions made and why:**
+- **Kustomize (base + overlays) instead of Helm:** kustomize ships inside kubectl (`kubectl apply -k`), needs no templating language, and the overlay pattern is enough for a local/learning deployment. The `local` overlay demonstrates a merge patch (faster scheduler tick).
+- **Service names match Compose service names** (`postgres`, `backend`, `ollama`, `prometheus`), so the Prometheus scrape config and Grafana provisioning files are shared between both environments byte-for-byte. The copies under `k8s/base/config/` exist only because kustomize refuses to read files outside its root; the header comment says to keep both sides in sync.
+- **Single backend replica by design:** the APScheduler lives inside the API process; two replicas would run duplicate health checks. Splitting the scheduler into its own Deployment is the documented path if scaling is ever needed.
+- **Secrets are generated with `change-me` placeholder literals** in the base so a throwaway local cluster works out of the box; anything real must override them in an overlay. No real credentials in git, same rule as `.env.example`.
+- **`Recreate` strategy for every pod with a ReadWriteOnce volume** (postgres, ollama, prometheus, grafana): a rolling update would try to attach the same volume to two pods at once.
+- **CI has no PostgreSQL service container** because the tests run on in-memory SQLite by design — the pipeline is three parallel-friendly jobs (lint+test, image build, manifest render) and finishes in ~1 minute. Image publishing to a registry stays an optional follow-up.
+
+**Workarounds:**
+- `kind load docker-image` fails against Docker Desktop's containerd image store ("ctr: content digest not found") for images pulled from Docker Hub, because their multi-platform manifests reference blobs that `docker save` does not export. Fix: `docker save --platform linux/amd64 <image> -o file.tar` then `kind load image-archive file.tar`. Locally built single-platform images load fine either way.
+- `ollama/ollama:latest` gets `imagePullPolicy: IfNotPresent` explicitly, because the `:latest` tag defaults to `Always`, which would ignore the pre-loaded image and re-download ~2 GB inside the node.
+
+**Open follow-ups / TODO:**
+- Optional: publish the backend image to GHCR from CI.
+- Optional future phases from the roadmap: alerts, cloud deployment, multi-user auth, GitOps.
+- The backend pod restarts once or twice on first boot while PostgreSQL initializes (migrations fail until it is ready); an initContainer that waits for the database would make first boot cleaner.
+
 ## 2026-07-08 - Phase 3 implemented: incidents with local AI summaries, plus pending hardening fixes
 
 **Phase:** Phase 3 - Local AI incident summaries

@@ -1,0 +1,82 @@
+# Centinela FastAPI backend. The image is built locally from ./backend and
+# loaded into the cluster (see README); no registry is involved.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  labels:
+    app: backend
+spec:
+  # One replica on purpose: the APScheduler runs inside the API process, so
+  # two replicas would run duplicate health checks against every service.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+        - name: backend
+          image: centinela-backend:0.3.0
+          # IfNotPresent lets the cluster use the locally loaded image
+          # instead of trying to pull it from Docker Hub (where it isn't).
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          env:
+            # Secrets are injected individually; DATABASE_URL is assembled
+            # here with Kubernetes $(VAR) expansion so the full URL (which
+            # embeds the password) never lives in a ConfigMap.
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: centinela-secrets
+                  key: POSTGRES_PASSWORD
+            - name: API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: centinela-secrets
+                  key: API_KEY
+            - name: DATABASE_URL
+              value: postgresql+psycopg://centinela:$(POSTGRES_PASSWORD)@postgres:5432/centinela
+          envFrom:
+            - configMapRef:
+                name: centinela-config
+          # startupProbe gives the Alembic migrations time to finish before
+          # liveness checks begin counting failures.
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            failureThreshold: 30
+            periodSeconds: 2
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  labels:
+    app: backend
+spec:
+  selector:
+    app: backend
+  ports:
+    - port: 8000
+      targetPort: 8000

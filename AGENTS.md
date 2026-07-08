@@ -21,7 +21,9 @@ Read `README.md` for the product overview and `docs/ARCHITECTURE.md` for the sys
 - Phase 1 is complete: FastAPI backend with service CRUD, APScheduler health checks, PostgreSQL persistence via Alembic migrations, Docker Compose, and a pytest suite.
 - Phase 2 is complete: Prometheus metrics at `/metrics`, Prometheus and Grafana services in Docker Compose, and a provisioned Grafana dashboard under `observability/`.
 - Phase 3 is complete: Ollama in Docker Compose (internal network only), incident detection on consecutive `down` checks, AI summaries stored on incidents, and incident endpoints at `/incidents` and `/services/{id}/incidents`.
-- The next implementation work is Phase 4: Kubernetes manifests for the full stack, tested in Minikube or Kind.
+- Phase 4 is complete: kustomize manifests under `k8s/` (base + local overlay), verified against a kind cluster.
+- Phase 5 is complete: GitHub Actions CI (`.github/workflows/ci.yml`) with lint, tests, Docker build, and manifest validation.
+- All planned phases are done. Remaining work comes from the optional list in `docs/ROADMAP.md` (alerts, cloud deployment, multi-user auth, GitOps).
 - If the roadmap and code disagree, treat `docs/ROADMAP.md` and `docs/DECISIONS_LOG.md` as the sources of truth, then update them once the discrepancy is resolved.
 
 ## Non-Negotiable Rules

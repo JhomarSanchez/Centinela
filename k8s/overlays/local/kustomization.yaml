@@ -1,0 +1,17 @@
+# Local-cluster overlay (kind/Minikube): the base with a snappier scheduler
+# tick so demos react faster. This is also the place to override the
+# change-me secrets for anything beyond a throwaway local cluster.
+#
+# Apply with: kubectl apply -k k8s/overlays/local
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+configMapGenerator:
+  - name: centinela-config
+    behavior: merge
+    literals:
+      - SCHEDULER_TICK_SECONDS=5

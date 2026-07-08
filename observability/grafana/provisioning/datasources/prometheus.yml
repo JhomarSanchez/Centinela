@@ -1,0 +1,14 @@
+# Grafana datasource provisioning: registers Prometheus automatically on
+# startup so no manual "Add datasource" clicking is needed.
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    # Fixed uid so the provisioned dashboard JSON can reference it reliably.
+    uid: centinela-prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false

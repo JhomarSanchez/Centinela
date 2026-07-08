@@ -1,0 +1,70 @@
+# Ollama, the local LLM behind incident summaries. ClusterIP only: just like
+# in Docker Compose, nothing outside the cluster can reach it.
+#
+# Note on GPUs: kind/Minikube clusters usually have no GPU access, so Ollama
+# runs on CPU here (slower generation, same behavior). The backend tolerates
+# slow or unavailable summaries by design.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ollama-models
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      # llama3.1:8b alone is ~4.9 GB.
+      storage: 8Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama
+  labels:
+    app: ollama
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate # the models volume is ReadWriteOnce
+  selector:
+    matchLabels:
+      app: ollama
+  template:
+    metadata:
+      labels:
+        app: ollama
+    spec:
+      containers:
+        - name: ollama
+          image: ollama/ollama:latest
+          # ":latest" defaults to imagePullPolicy Always, which would ignore
+          # the locally loaded image and re-download ~2 GB inside the node.
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 11434
+          volumeMounts:
+            - name: models
+              mountPath: /root/.ollama
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 11434
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: ollama-models
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ollama
+spec:
+  selector:
+    app: ollama
+  ports:
+    - port: 11434
+      targetPort: 11434

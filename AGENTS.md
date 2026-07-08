@@ -13,12 +13,17 @@ This file is the primary source of instructions for any AI agent working in this
 
 Centinela is a personal service-monitoring platform. It registers services, runs periodic health checks, stores availability history, exposes metrics, and later uses a local LLM through Ollama to generate natural-language incident summaries.
 
-Read `README` for the product overview and `docs/ARCHITECTURE.md` for the system design.
+Read `README.md` for the product overview and `docs/ARCHITECTURE.md` for the system design.
 
 ## Current State
 
 - Phase 0 is complete: planning, architecture, roadmap, and AI context files exist.
-- The next implementation work is Phase 1: basic backend with FastAPI, PostgreSQL persistence, health checks, Docker Compose, and basic tests.
+- Phase 1 is complete: FastAPI backend with service CRUD, APScheduler health checks, PostgreSQL persistence via Alembic migrations, Docker Compose, and a pytest suite.
+- Phase 2 is complete: Prometheus metrics at `/metrics`, Prometheus and Grafana services in Docker Compose, and a provisioned Grafana dashboard under `observability/`.
+- Phase 3 is complete: Ollama in Docker Compose (internal network only), incident detection on consecutive `down` checks, AI summaries stored on incidents, and incident endpoints at `/incidents` and `/services/{id}/incidents`.
+- Phase 4 is complete: kustomize manifests under `k8s/` (base + local overlay), verified against a kind cluster.
+- Phase 5 is complete: GitHub Actions CI (`.github/workflows/ci.yml`) with lint, tests, Docker build, and manifest validation.
+- All planned phases are done. Remaining work comes from the optional list in `docs/ROADMAP.md` (alerts, cloud deployment, multi-user auth, GitOps).
 - If the roadmap and code disagree, treat `docs/ROADMAP.md` and `docs/DECISIONS_LOG.md` as the sources of truth, then update them once the discrepancy is resolved.
 
 ## Non-Negotiable Rules
@@ -66,12 +71,12 @@ centinela/
 │   ├── ARCHITECTURE.md
 │   ├── ROADMAP.md
 │   └── DECISIONS_LOG.md
-├── README
+├── README.md
 ├── AGENTS.md
 └── CLAUDE.md
 ```
 
-Root-level `README`, `AGENTS.md`, and `CLAUDE.md` are kept at the root because developer tools and AI coding agents commonly look there first. Deeper project context lives under `docs/`.
+Root-level `README.md`, `AGENTS.md`, and `CLAUDE.md` are kept at the root because developer tools and AI coding agents commonly look there first. Deeper project context lives under `docs/`.
 
 ## Definition of Done
 
@@ -81,7 +86,7 @@ A coding task is done when:
 - [ ] At least one happy-path test covers the new behavior.
 - [ ] `docs/DECISIONS_LOG.md` is updated when the task involved a meaningful decision, workaround, or completed milestone.
 - [ ] The relevant checklist in `docs/ROADMAP.md` is updated.
-- [ ] `README` reflects any change in how to run or use the project.
+- [ ] `README.md` reflects any change in how to run or use the project.
 
 A documentation-only task is done when:
 

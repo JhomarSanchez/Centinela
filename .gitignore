@@ -40,3 +40,6 @@ desktop.ini
 # Docker/local data volumes
 .docker/
 data/
+
+# Local SQLite fallback database (the real database runs in PostgreSQL)
+*.db

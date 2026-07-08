@@ -1,0 +1,61 @@
+# Kustomize base for the full Centinela stack.
+# Apply with: kubectl apply -k k8s/base   (or an overlay, see k8s/overlays/).
+#
+# The files under config/ are copies of the ones in observability/ — kustomize
+# refuses to read files outside its own directory tree, so they are duplicated
+# here on purpose. If you edit one side, mirror the change on the other.
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: centinela
+
+resources:
+  - namespace.yaml
+  - postgres.yaml
+  - backend.yaml
+  - ollama.yaml
+  - prometheus.yaml
+  - grafana.yaml
+
+configMapGenerator:
+  # Non-secret configuration shared by the deployments. The backend loads it
+  # via envFrom; extra keys are harmless (pydantic-settings ignores them).
+  - name: centinela-config
+    literals:
+      - APP_ENV=development
+      - POSTGRES_DB=centinela
+      - POSTGRES_USER=centinela
+      - DEFAULT_CHECK_INTERVAL_SECONDS=60
+      - CHECK_TIMEOUT_SECONDS=5
+      - DEGRADED_LATENCY_MS=2000
+      - SCHEDULER_TICK_SECONDS=10
+      - CHECK_RETENTION_DAYS=30
+      - INCIDENT_FAILURE_THRESHOLD=3
+      - OLLAMA_ENABLED=true
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_MODEL=llama3.1:8b
+      - OLLAMA_TIMEOUT_SECONDS=120
+      - GRAFANA_ADMIN_USER=admin
+  - name: prometheus-config
+    files:
+      - config/prometheus.yml
+  - name: grafana-datasources
+    files:
+      - config/grafana-datasource.yml
+  - name: grafana-dashboard-provider
+    files:
+      - config/grafana-dashboard-provider.yml
+  - name: grafana-dashboards
+    files:
+      - config/centinela-dashboard.json
+
+secretGenerator:
+  # "change-me" placeholders keep this base self-contained for local learning
+  # clusters. Real deployments must override these in an overlay (or use a
+  # proper secret manager) — never commit real credentials to git.
+  - name: centinela-secrets
+    literals:
+      - POSTGRES_PASSWORD=change-me
+      - API_KEY=change-me
+      - GRAFANA_ADMIN_PASSWORD=change-me

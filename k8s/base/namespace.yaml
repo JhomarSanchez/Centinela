@@ -1,0 +1,6 @@
+# Everything Centinela runs inside its own namespace, so `kubectl delete
+# namespace centinela` removes the whole stack cleanly.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: centinela

@@ -4,10 +4,9 @@ Phased development plan. **Do not move to the next phase until the current phase
 
 ## Current Status
 
-- **Current phase:** Phase 1 - Basic backend.
-- **Completed:** Phase 0 - Planning.
-- **Next step:** Initialize the FastAPI backend structure and supporting development files.
-- **Important constraint:** Do not implement observability, Ollama incident summaries, Kubernetes, or CI before Phase 1 is working.
+- **Current phase:** All planned phases (0-5) are complete.
+- **Completed:** Phase 0 - Planning. Phase 1 - Basic backend. Phase 2 - Classic observability. Phase 3 - Local AI incident summaries. Phase 4 - Kubernetes. Phase 5 - CI.
+- **Next step:** Optional future phases only (alerts, cloud deployment, multi-user auth, GitOps).
 
 ## Phase 0 - Planning Complete
 
@@ -20,14 +19,14 @@ Phased development plan. **Do not move to the next phase until the current phase
 
 **Goal:** A working API that registers services, performs real health checks, and persists results.
 
-- [ ] Initialize FastAPI project and folder structure.
-- [ ] Add `Service` and `Check` models with Alembic migrations.
-- [ ] Add CRUD endpoints for `Service`.
-- [ ] Add an APScheduler job inside the backend process for periodic service checks.
-- [ ] Store every `Check` in the database.
-- [ ] Add an endpoint to query a service's check history.
-- [ ] Add backend `Dockerfile` and `docker-compose.yml` for API + PostgreSQL.
-- [ ] Add basic tests for CRUD and health-check logic.
+- [x] Initialize FastAPI project and folder structure.
+- [x] Add `Service` and `Check` models with Alembic migrations.
+- [x] Add CRUD endpoints for `Service`.
+- [x] Add an APScheduler job inside the backend process for periodic service checks.
+- [x] Store every `Check` in the database.
+- [x] Add an endpoint to query a service's check history.
+- [x] Add backend `Dockerfile` and `docker-compose.yml` for API + PostgreSQL.
+- [x] Add basic tests for CRUD and health-check logic.
 
 **Deliverable:** You can register a URL and, after a few minutes, see its availability history stored in the database.
 
@@ -35,10 +34,10 @@ Phased development plan. **Do not move to the next phase until the current phase
 
 **Goal:** See system state in dashboards, not only in the database.
 
-- [ ] Expose Prometheus metrics from the backend at `/metrics`.
-- [ ] Add Prometheus to `docker-compose.yml`, configured to scrape the backend.
-- [ ] Add Grafana connected to Prometheus.
-- [ ] Add a basic dashboard: current status per service, historical latency, and availability percentage.
+- [x] Expose Prometheus metrics from the backend at `/metrics`.
+- [x] Add Prometheus to `docker-compose.yml`, configured to scrape the backend.
+- [x] Add Grafana connected to Prometheus.
+- [x] Add a basic dashboard: current status per service, historical latency, and availability percentage.
 
 **Deliverable:** A Grafana dashboard shows the real state of monitored services.
 
@@ -46,12 +45,12 @@ Phased development plan. **Do not move to the next phase until the current phase
 
 **Goal:** When something fails, generate a natural-language explanation.
 
-- [ ] Add Ollama as a service in `docker-compose.yml`, with a documented local model such as `llama3.1:8b`.
-- [ ] Add incident-detection logic: N consecutive failures create an `Incident`.
-- [ ] Build the context prompt from recent checks, service name, timestamps, and status data.
-- [ ] Add an HTTP client for Ollama's internal API.
-- [ ] Store the generated summary on the `Incident` and expose it through the API.
-- [ ] Add an endpoint to list active and historical incidents with their AI summaries.
+- [x] Add Ollama as a service in `docker-compose.yml`, with a documented local model such as `llama3.1:8b`.
+- [x] Add incident-detection logic: N consecutive failures create an `Incident`.
+- [x] Build the context prompt from recent checks, service name, timestamps, and status data.
+- [x] Add an HTTP client for Ollama's internal API.
+- [x] Store the generated summary on the `Incident` and expose it through the API.
+- [x] Add an endpoint to list active and historical incidents with their AI summaries.
 
 **Deliverable:** When a service outage is simulated, Centinela creates and stores a readable incident summary.
 
@@ -59,10 +58,10 @@ Phased development plan. **Do not move to the next phase until the current phase
 
 **Goal:** Run the full stack in a local Kubernetes cluster, not only in Docker Compose.
 
-- [ ] Add Deployment and Service manifests for backend, PostgreSQL, Ollama, Prometheus, and Grafana.
-- [ ] Add ConfigMaps and Secrets for configuration and credentials.
-- [ ] Test the full stack in Minikube or Kind.
-- [ ] Document in `README` how to start everything with `kubectl apply`.
+- [x] Add Deployment and Service manifests for backend, PostgreSQL, Ollama, Prometheus, and Grafana.
+- [x] Add ConfigMaps and Secrets for configuration and credentials.
+- [x] Test the full stack in Minikube or Kind.
+- [x] Document in `README` how to start everything with `kubectl apply`.
 
 **Deliverable:** The full project runs in a local Kubernetes cluster with one documented command flow.
 
@@ -70,9 +69,9 @@ Phased development plan. **Do not move to the next phase until the current phase
 
 **Goal:** Run automated validation before changes are integrated.
 
-- [ ] Add a GitHub Actions pipeline for linting and tests on every push or pull request.
-- [ ] Build the backend Docker image as part of the pipeline.
-- [ ] Optional: publish the image to Docker Hub or GitHub Container Registry.
+- [x] Add a GitHub Actions pipeline for linting and tests on every push or pull request.
+- [x] Build the backend Docker image as part of the pipeline.
+- [ ] Optional: publish the image to Docker Hub or GitHub Container Registry (deliberately skipped for now; the image is trivial to build locally).
 
 **Deliverable:** A passing CI badge appears in `README`, and the pipeline is visible in GitHub Actions.
 

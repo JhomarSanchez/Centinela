@@ -23,6 +23,102 @@ Historical project log: what changed, what was decided, and why. This file gives
 
 ---
 
+## 2026-07-08 - Phase 3 implemented: incidents with local AI summaries, plus pending hardening fixes
+
+**Phase:** Phase 3 - Local AI incident summaries
+
+**What changed:** Incident tracking now exists end to end: an `Incident` model + Alembic migration `0002`, detection logic in `app/services/incident_manager.py` driven by the scheduler tick, an Ollama HTTP client (`app/ai/ollama_client.py`) and prompt builder (`app/ai/prompt.py`), read-only endpoints (`GET /incidents`, `GET /services/{id}/incidents`), two new metrics (`centinela_incident_open`, `centinela_incidents_total`) with an "Open incidents" dashboard panel, and Ollama as a Compose service (internal network only, models persisted in a volume, NVIDIA GPU reserved). The suite grew from 45 to 69 tests. Verified live: the unreachable demo service opened incident #1 with the prompt stored in `raw_context`.
+
+**Decisions made and why:**
+- **Detection rule:** `INCIDENT_FAILURE_THRESHOLD` (default 3, per the Phase 0 proposal) consecutive `down` checks open an incident; an `up` check resolves it; `degraded` neither opens nor resolves (it breaks a down-streak but is not a recovery). One open incident max per service.
+- **`started_at` is the beginning of the failure streak** (the oldest `down` in the streak), not the moment the threshold was crossed — closer to the truth the user cares about.
+- **The AI is best-effort by design.** Any Ollama failure (down, model not pulled, timeout, bad JSON) returns `None` instead of raising; the incident opens with `ai_summary = NULL` and each later `down` check retries. Incident bookkeeping must never depend on the LLM.
+- **`raw_context` stores the exact prompt** even when generation fails — transparency about what the model saw, and free debugging material.
+- **Ollama has no published ports**: only the backend can reach it inside the Compose network, per the architecture's security notes. The `ollama/ollama` image is `latest` because model behavior is pinned by the model tag (`llama3.1:8b`), not the server version.
+- **Incident processing is isolated in the tick** with its own try/except, same pattern as the per-service check isolation: an AI-path bug cannot stop health checks.
+
+**Pending recommendations from the Phase 2 review, applied here:**
+- Retention: a daily scheduler job deletes checks older than `CHECK_RETENTION_DAYS` (default 30; 0 disables). Incidents are kept forever.
+- Failed checks now store `latency_ms = NULL` instead of the time-to-timeout, so latency graphs only show real response times.
+- `find_due_services` uses one aggregate query (GROUP BY + outer join) instead of one query per service (N+1).
+- The API logs a warning at startup when `API_KEY` is still `change-me`.
+
+**Alternatives considered:**
+- Counting `degraded` toward the failure threshold: rejected — a slow-but-answering service is a different problem than an outage, and mixing them would blur what an "incident" means.
+- Generating summaries in a separate worker/queue: rejected at this scale; the tick tolerates the LLM latency because checks are already per-service isolated, and `max_instances=1` + `coalesce` protect against pile-ups.
+
+**Open follow-ups / TODO:**
+- Start Phase 4: Kubernetes manifests for the full stack (backend, PostgreSQL, Ollama, Prometheus, Grafana) in Minikube or Kind.
+- If many services fail at once, summary generation serializes inside the tick; revisit with a queue or async checks if that ever hurts.
+
+## 2026-07-08 - Phase 2 implemented: Prometheus metrics, Grafana dashboard, and Phase 1 hardening
+
+**Phase:** Phase 2 - Classic observability
+
+**What changed:** The backend now exposes Prometheus metrics at `/metrics` (`app/metrics.py`), Docker Compose gained Prometheus (`prom/prometheus:v3.5.0`) and Grafana (`grafana/grafana:12.0.2`) services, and Grafana is fully provisioned from `observability/`: datasource, dashboard provider, and a "Centinela - Service Health" dashboard with current status, availability percentage, latency history, and checks-by-result panels. Verified end-to-end with the full Compose stack: one reachable and one unreachable service, metrics scraped by Prometheus, dashboard provisioned in Grafana, and gauges restored after a backend restart. The suite grew from 33 to 45 tests.
+
+**Decisions made and why:**
+- **Metric design:** gauges hold the latest check result per service (`centinela_service_status` 0/1/2, `centinela_service_up` 0/1, `centinela_check_latency_seconds`) and a counter (`centinela_checks_total{service_name,status}`) accumulates results. Gauges fit sparse scheduled checks better than histograms; the counter lets dashboards compute availability over any range. Latency is exported in seconds because Prometheus convention is base SI units.
+- **Gauges are re-seeded from the newest stored check on startup** (when the scheduler is enabled), so a backend restart does not leave the dashboard on "No data" until every service is checked again. Counters are intentionally not restored: they must only count what the current process observed.
+- **Metric series follow the service lifecycle:** deleting a service removes its series, and renaming moves them (drop old name, re-seed new name), so dashboards never show stale or ghost services.
+- **Grafana is provisioned from files** instead of configured by hand, so `docker compose up` produces a working dashboard with zero clicks — and the dashboard JSON is versioned in git.
+
+**Phase 1 hardening applied in the same pass (edge cases found during review):**
+- The scheduler tick now commits per service inside a try/except: one unexpected failure (or a service deleted mid-tick) no longer discards every other check result of that tick. Covered by a new test.
+- `create_service`/`update_service` catch the database `IntegrityError` so two concurrent writes with the same name produce a 409 instead of a 500 (the pre-check alone was racy).
+- The API-key comparison uses `secrets.compare_digest` (constant-time) instead of `==` to avoid timing attacks.
+- All Compose services got `restart: unless-stopped`, and the backend got a healthcheck (used by Prometheus's `depends_on` condition).
+
+**Alternatives considered:**
+- A Prometheus `Histogram` for latency: rejected because checks are sparse (one per interval per service); a last-value gauge graphs the actual measurements directly.
+- `prometheus-fastapi-instrumentator` for automatic HTTP metrics: rejected for now to keep the metric surface small and hand-written while learning; can be added later if API request metrics become interesting.
+
+**Open follow-ups / TODO:**
+- Start Phase 3: Ollama service, incident detection, and AI summaries.
+- Check history grows without bound; add a retention/cleanup job before the database becomes large (noted for a later phase).
+
+## 2026-07-07 - README renamed to README.md with real Phase 1 instructions
+
+**Phase:** Phase 1 - Basic backend
+
+**What changed:** The root `README` (no extension) was replaced by `README.md`, rewritten to document the now-working Phase 1: real quick-start commands, actual API usage examples, the health-check classification rules, and test instructions. References in `AGENTS.md` were updated to `README.md`.
+
+**Decisions made and why:**
+- This reverses the earlier "treat the root file as `README` without an extension" decision. GitHub only renders Markdown when the file is named `README.md`; the extension-less file was displayed as raw text, so all badges, HTML, and Mermaid diagrams appeared as unreadable source code on the repository landing page.
+- The "planned/not runnable" wording was removed because the commands now work.
+- Badges were toned down from `for-the-badge` to `flat-square` style and fake status badges were avoided (no CI badge until Phase 5 exists).
+
+**Alternatives considered:**
+- Keeping `README` and accepting plain-text rendering was rejected: a portfolio project's landing page must render properly.
+
+**Open follow-ups / TODO:**
+- Add a real CI badge when Phase 5 lands.
+
+## 2026-07-07 - Phase 1 implemented: FastAPI backend with scheduled health checks
+
+**Phase:** Phase 1 - Basic backend
+
+**What changed:** The full Phase 1 backend now exists under `backend/`: service CRUD API, `Service`/`Check` SQLAlchemy models with an initial Alembic migration, an APScheduler background job that performs periodic HTTP health checks, a check-history endpoint, Dockerfile + `docker-compose.yml` (API + PostgreSQL), and a 33-test pytest suite. Verified end-to-end: the Compose stack was built and started, a reachable and an unreachable service were registered, and both accumulated correct `up`/`down` history in PostgreSQL.
+
+**Decisions made and why:**
+- **Layered architecture** (routes → services → models) as proposed in `AGENTS.md`. No repository pattern: at this size it would add indirection without benefit.
+- **Single scheduler "tick" job** instead of one APScheduler job per service: a tick every `SCHEDULER_TICK_SECONDS` (default 10) queries the database for services whose last check is older than their interval. This keeps the scheduler stateless — CRUD operations need no scheduler bookkeeping.
+- **Status classification:** no response or 5xx → `down`; 4xx → `degraded`; 2xx/3xx slower than `DEGRADED_LATENCY_MS` → `degraded`; otherwise `up`. Kept in a pure function (`health_checker.classify`) so it is unit-testable without network.
+- **Synchronous SQLAlchemy** (not async) for the first phase: simpler to read, debug, and test; FastAPI runs sync endpoints in a thread pool, which is more than enough for single-user load.
+- **Tests use in-memory SQLite** with a dependency override instead of PostgreSQL, so `pytest` runs in under a second with no containers. The scheduler is disabled during tests via `SCHEDULER_ENABLED=false`.
+- **psycopg 3** (`postgresql+psycopg://`) as the PostgreSQL driver — actively maintained successor of psycopg2.
+- **APScheduler pinned `<4.0`** because the 4.x series changes the API completely.
+- **Migrations run on container start** (`alembic upgrade head && uvicorn ...`) so `docker compose up` is the only command needed.
+- Write endpoints require `X-API-Key`; reads stay open (single-user tool on a local network), per `docs/ARCHITECTURE.md`.
+
+**Alternatives considered:**
+- Async SQLAlchemy + asyncpg: rejected for now; revisit if check volume ever makes the thread pool a bottleneck.
+- One APScheduler job per service: rejected because create/update/delete would each need to mutate scheduler state.
+
+**Open follow-ups / TODO:**
+- Start Phase 2: expose Prometheus metrics at `/metrics` and add Prometheus + Grafana to Compose.
+- Note: the `Check` timestamp column is named `checked_at` (clearer than the draft's `timestamp`); `docs/ARCHITECTURE.md` was updated to match.
+
 ## 2026-07-07 - README visual polish
 
 **Phase:** Phase 0 - Planning

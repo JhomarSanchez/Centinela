@@ -1,0 +1,1 @@
+"""Centinela backend application package."""

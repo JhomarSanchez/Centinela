@@ -1,0 +1,13 @@
+# Grafana dashboard provisioning: loads every JSON dashboard found in the
+# mounted /var/lib/grafana/dashboards directory at startup.
+
+apiVersion: 1
+
+providers:
+  - name: centinela
+    folder: Centinela
+    type: file
+    # Changes to the JSON files on disk are picked up without restarting.
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards

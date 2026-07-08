@@ -1,0 +1,106 @@
+# Local stack: FastAPI backend + PostgreSQL (Phase 1), Prometheus + Grafana
+# (Phase 2), and Ollama for AI incident summaries (Phase 3).
+# Docker Compose automatically loads a `.env` file from this directory for the
+# ${VAR:-default} substitutions below, so `cp .env.example .env` is enough.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-centinela}
+      POSTGRES_USER: ${POSTGRES_USER:-centinela}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-centinela} -d ${POSTGRES_DB:-centinela}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    # A monitoring stack should come back by itself after crashes or reboots.
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      API_KEY: ${API_KEY:-change-me}
+      # +psycopg selects the psycopg 3 driver explicitly.
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-centinela}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/${POSTGRES_DB:-centinela}
+      DEFAULT_CHECK_INTERVAL_SECONDS: ${DEFAULT_CHECK_INTERVAL_SECONDS:-60}
+      CHECK_TIMEOUT_SECONDS: ${CHECK_TIMEOUT_SECONDS:-5}
+      DEGRADED_LATENCY_MS: ${DEGRADED_LATENCY_MS:-2000}
+      SCHEDULER_TICK_SECONDS: ${SCHEDULER_TICK_SECONDS:-10}
+      CHECK_RETENTION_DAYS: ${CHECK_RETENTION_DAYS:-30}
+      INCIDENT_FAILURE_THRESHOLD: ${INCIDENT_FAILURE_THRESHOLD:-3}
+      OLLAMA_ENABLED: ${OLLAMA_ENABLED:-true}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.1:8b}
+      OLLAMA_TIMEOUT_SECONDS: ${OLLAMA_TIMEOUT_SECONDS:-120}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      # The slim image has no curl; Python's standard library does the job.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      # Give migrations time to run before health checks start counting.
+      start_period: 30s
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    # No published ports on purpose: only the backend (inside the Compose
+    # network) may talk to the LLM, per docs/ARCHITECTURE.md.
+    volumes:
+      # Persists downloaded models, so `ollama pull` is a one-time step.
+      - ollama_models:/root/.ollama
+    # Hand the NVIDIA GPU to the container; generation on CPU works but is
+    # much slower. Remove this block on machines without an NVIDIA GPU.
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:12.0.2
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-change-me}
+      # Local single-user tool: skip the "invite your team" style features.
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  ollama_models:
+  prometheus_data:
+  grafana_data:

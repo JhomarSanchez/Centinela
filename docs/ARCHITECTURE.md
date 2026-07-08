@@ -26,6 +26,34 @@ flowchart LR
     SCHED -->|stores check results| DB
 ```
 
+## Phase 2 Architecture (implemented)
+
+Phase 2 adds classic observability on top of Phase 1, still in Docker Compose:
+
+- The backend exposes Prometheus metrics at `GET /metrics` (no API key; it only reveals service names and statuses).
+- Every health check updates in-memory metric series: latest status per service (`centinela_service_status`), a 0/1 availability gauge (`centinela_service_up`), latest latency in seconds (`centinela_check_latency_seconds`), and a cumulative counter by result (`centinela_checks_total`).
+- On startup the backend re-seeds the gauges from the newest stored check per service, so restarts do not blank the dashboard. Deleting or renaming a service drops/moves its series.
+- Prometheus scrapes the backend every 15 seconds.
+- Grafana is provisioned from files under `observability/grafana/`: the Prometheus datasource and a "Centinela - Service Health" dashboard (current status, availability %, latency history, checks by result) exist immediately after `docker compose up`.
+
+```mermaid
+flowchart LR
+    SCHED[Scheduler tick] -->|stores Check| DB[(PostgreSQL)]
+    SCHED -->|updates in-memory series| MET[/GET /metrics/]
+    MET -->|scraped every 15s| PROM[Prometheus]
+    PROM --> GRAF[Grafana dashboard]
+```
+
+## Phase 3 Architecture (implemented)
+
+Phase 3 adds incident tracking and local AI summaries:
+
+- Ollama runs as a separate Compose service with no published ports: only the backend can reach it over the internal network. Models persist in the `ollama_models` volume (`docker compose exec ollama ollama pull llama3.1:8b` is a one-time step).
+- After each stored check, the scheduler runs incident logic: `INCIDENT_FAILURE_THRESHOLD` (default 3) consecutive `down` checks open an `Incident`; an `up` check resolves it; `degraded` does neither (it breaks a down-streak but is not a recovery).
+- When an incident opens, the backend builds a prompt from real data (service name, URL, incident start, last 10 checks) and asks Ollama for a 3-4 sentence summary. The prompt is stored on the incident (`raw_context`) for transparency.
+- The AI is strictly best-effort: if Ollama is disabled, unreachable, or the model is not pulled yet, the incident still opens with `ai_summary = NULL`, and each later `down` check retries the summary. Incident bookkeeping never depends on the LLM.
+- Incidents are exposed at `GET /incidents` (filter `?active=true|false`) and `GET /services/{id}/incidents`, and on the dashboard via the `centinela_incident_open` and `centinela_incidents_total` metrics.
+
 ## Target Architecture
 
 Later phases add observability, local AI incident summaries, and Kubernetes deployment.
@@ -70,10 +98,10 @@ Ollama does not write to the database. The backend or scheduler sends a prompt t
 
 - `id`
 - `service_id`
-- `timestamp`
+- `checked_at`
 - `status` (`up`, `down`, or `degraded`)
-- `latency_ms`
-- `http_code`
+- `latency_ms` (nullable)
+- `http_code` (nullable; empty when no response was received at all)
 
 **Incident**
 

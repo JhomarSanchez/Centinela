@@ -4,10 +4,10 @@ Phased development plan. **Do not move to the next phase until the current phase
 
 ## Current Status
 
-- **Current phase:** Phase 1 - Basic backend.
-- **Completed:** Phase 0 - Planning.
-- **Next step:** Initialize the FastAPI backend structure and supporting development files.
-- **Important constraint:** Do not implement observability, Ollama incident summaries, Kubernetes, or CI before Phase 1 is working.
+- **Current phase:** Phase 4 - Kubernetes.
+- **Completed:** Phase 0 - Planning. Phase 1 - Basic backend. Phase 2 - Classic observability. Phase 3 - Local AI incident summaries.
+- **Next step:** Write Kubernetes manifests for the full stack and test them in Minikube or Kind.
+- **Important constraint:** Do not implement CI before Phase 4 is working.
 
 ## Phase 0 - Planning Complete
 
@@ -20,14 +20,14 @@ Phased development plan. **Do not move to the next phase until the current phase
 
 **Goal:** A working API that registers services, performs real health checks, and persists results.
 
-- [ ] Initialize FastAPI project and folder structure.
-- [ ] Add `Service` and `Check` models with Alembic migrations.
-- [ ] Add CRUD endpoints for `Service`.
-- [ ] Add an APScheduler job inside the backend process for periodic service checks.
-- [ ] Store every `Check` in the database.
-- [ ] Add an endpoint to query a service's check history.
-- [ ] Add backend `Dockerfile` and `docker-compose.yml` for API + PostgreSQL.
-- [ ] Add basic tests for CRUD and health-check logic.
+- [x] Initialize FastAPI project and folder structure.
+- [x] Add `Service` and `Check` models with Alembic migrations.
+- [x] Add CRUD endpoints for `Service`.
+- [x] Add an APScheduler job inside the backend process for periodic service checks.
+- [x] Store every `Check` in the database.
+- [x] Add an endpoint to query a service's check history.
+- [x] Add backend `Dockerfile` and `docker-compose.yml` for API + PostgreSQL.
+- [x] Add basic tests for CRUD and health-check logic.
 
 **Deliverable:** You can register a URL and, after a few minutes, see its availability history stored in the database.
 
@@ -35,10 +35,10 @@ Phased development plan. **Do not move to the next phase until the current phase
 
 **Goal:** See system state in dashboards, not only in the database.
 
-- [ ] Expose Prometheus metrics from the backend at `/metrics`.
-- [ ] Add Prometheus to `docker-compose.yml`, configured to scrape the backend.
-- [ ] Add Grafana connected to Prometheus.
-- [ ] Add a basic dashboard: current status per service, historical latency, and availability percentage.
+- [x] Expose Prometheus metrics from the backend at `/metrics`.
+- [x] Add Prometheus to `docker-compose.yml`, configured to scrape the backend.
+- [x] Add Grafana connected to Prometheus.
+- [x] Add a basic dashboard: current status per service, historical latency, and availability percentage.
 
 **Deliverable:** A Grafana dashboard shows the real state of monitored services.
 
@@ -46,12 +46,12 @@ Phased development plan. **Do not move to the next phase until the current phase
 
 **Goal:** When something fails, generate a natural-language explanation.
 
-- [ ] Add Ollama as a service in `docker-compose.yml`, with a documented local model such as `llama3.1:8b`.
-- [ ] Add incident-detection logic: N consecutive failures create an `Incident`.
-- [ ] Build the context prompt from recent checks, service name, timestamps, and status data.
-- [ ] Add an HTTP client for Ollama's internal API.
-- [ ] Store the generated summary on the `Incident` and expose it through the API.
-- [ ] Add an endpoint to list active and historical incidents with their AI summaries.
+- [x] Add Ollama as a service in `docker-compose.yml`, with a documented local model such as `llama3.1:8b`.
+- [x] Add incident-detection logic: N consecutive failures create an `Incident`.
+- [x] Build the context prompt from recent checks, service name, timestamps, and status data.
+- [x] Add an HTTP client for Ollama's internal API.
+- [x] Store the generated summary on the `Incident` and expose it through the API.
+- [x] Add an endpoint to list active and historical incidents with their AI summaries.
 
 **Deliverable:** When a service outage is simulated, Centinela creates and stores a readable incident summary.
 

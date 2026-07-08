@@ -1,0 +1,19 @@
+# Prometheus scrape configuration for the Centinela stack.
+# `backend` resolves through the Docker Compose network; Prometheus pulls
+# GET /metrics from the API on every scrape.
+
+global:
+  # More frequent than the default 1m so dashboard status changes appear
+  # quickly; still far cheaper than the checks themselves.
+  scrape_interval: 15s
+
+scrape_configs:
+  # Prometheus scraping itself: handy to confirm Prometheus is healthy.
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: centinela-backend
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["backend:8000"]

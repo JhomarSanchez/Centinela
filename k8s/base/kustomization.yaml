@@ -14,7 +14,7 @@ resources:
   - namespace.yaml
   - postgres.yaml
   - backend.yaml
-  - ollama.yaml
+  - frontend.yaml
   - prometheus.yaml
   - grafana.yaml
 
@@ -32,10 +32,13 @@ configMapGenerator:
       - SCHEDULER_TICK_SECONDS=10
       - CHECK_RETENTION_DAYS=30
       - INCIDENT_FAILURE_THRESHOLD=3
-      - OLLAMA_ENABLED=true
+      - AI_WORKER_SECONDS=5
+      - OLLAMA_ENABLED=false
       - OLLAMA_BASE_URL=http://ollama:11434
       - OLLAMA_MODEL=llama3.1:8b
       - OLLAMA_TIMEOUT_SECONDS=120
+      - OPENAI_TIMEOUT_SECONDS=60
+      - ANTHROPIC_TIMEOUT_SECONDS=60
       - GRAFANA_ADMIN_USER=admin
   - name: prometheus-config
     files:
@@ -58,4 +61,5 @@ secretGenerator:
     literals:
       - POSTGRES_PASSWORD=change-me
       - API_KEY=change-me
+      - APP_SECRET_KEY=change-me
       - GRAFANA_ADMIN_PASSWORD=change-me

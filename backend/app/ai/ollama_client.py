@@ -12,6 +12,7 @@ import logging
 
 import httpx
 
+from app.ai.providers import GenerationRequest, OllamaProvider, ProviderError
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -27,26 +28,14 @@ def generate(prompt: str, client: httpx.Client | None = None) -> str | None:
     if not settings.ollama_enabled:
         return None
 
-    owns_client = client is None
-    if client is None:
-        client = httpx.Client(timeout=settings.ollama_timeout_seconds)
     try:
-        response = client.post(
-            f"{settings.ollama_base_url}/api/generate",
-            json={
-                "model": settings.ollama_model,
-                "prompt": prompt,
-                # One complete JSON answer instead of a token stream; a
-                # background job has no use for partial output.
-                "stream": False,
-                # Low temperature: factual summaries, not creative writing.
-                "options": {"temperature": 0.3},
-            },
+        provider = OllamaProvider(
+            settings.ollama_base_url,
+            settings.ollama_timeout_seconds,
+            client=client,
         )
-        response.raise_for_status()
-        text = response.json().get("response", "").strip()
-        return text or None
-    except (httpx.HTTPError, ValueError):
+        return provider.generate(GenerationRequest(prompt, settings.ollama_model)).text
+    except ProviderError:
         logger.warning(
             "Ollama request failed (model=%s, url=%s); incident will have no summary yet",
             settings.ollama_model,
@@ -54,6 +43,3 @@ def generate(prompt: str, client: httpx.Client | None = None) -> str | None:
             exc_info=True,
         )
         return None
-    finally:
-        if owns_client:
-            client.close()

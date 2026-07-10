@@ -5,9 +5,8 @@ Rules (see docs/ARCHITECTURE.md):
 - An `up` check resolves the open incident.
 - `degraded` does neither: it breaks a down-streak but is not a recovery.
 
-The AI summary is best-effort: if Ollama cannot answer when the incident
-opens, the incident is stored without a summary and the next `down` check
-retries. Incident bookkeeping never depends on the LLM being available.
+The AI summary is queued for a separate worker. Incident bookkeeping never
+depends on the selected LLM being available.
 """
 
 import logging
@@ -17,16 +16,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app import metrics
-from app.ai import ollama_client
-from app.ai.prompt import build_incident_prompt
+from app.ai.worker import queue_summary
 from app.config import get_settings
 from app.models import Check, CheckStatus, Incident, Service
 
 logger = logging.getLogger(__name__)
-
-# How many recent checks the LLM sees as context.
-PROMPT_CHECK_COUNT = 10
-
 
 def get_open_incident(db: Session, service_id: int) -> Incident | None:
     """The service's unresolved incident, if any (there is at most one)."""
@@ -36,6 +30,11 @@ def get_open_incident(db: Session, service_id: int) -> Incident | None:
         .order_by(Incident.started_at.desc())
         .limit(1)
     ).first()
+
+
+def get_incident(db: Session, incident_id: int) -> Incident | None:
+    """Return one incident by primary key."""
+    return db.get(Incident, incident_id)
 
 
 def _recent_checks(db: Session, service_id: int, limit: int) -> list[Check]:
@@ -57,9 +56,6 @@ def process_check_result(db: Session, service: Service, status: CheckStatus) -> 
     if status == CheckStatus.down:
         if open_incident is None:
             _maybe_open_incident(db, service)
-        elif open_incident.ai_summary is None:
-            # Ollama was unavailable when the incident opened; try again.
-            _generate_summary(db, service, open_incident)
     elif status == CheckStatus.up and open_incident is not None:
         open_incident.resolved_at = datetime.now(UTC)
         db.commit()
@@ -82,6 +78,8 @@ def _maybe_open_incident(db: Session, service: Service) -> None:
     db.add(incident)
     db.commit()
     db.refresh(incident)
+    queue_summary(db, incident)
+    db.commit()
     metrics.record_incident_opened(service.name)
     logger.warning(
         "incident opened service=%s incident_id=%s after %s consecutive down checks",
@@ -89,21 +87,6 @@ def _maybe_open_incident(db: Session, service: Service) -> None:
         incident.id,
         threshold,
     )
-    _generate_summary(db, service, incident)
-
-
-def _generate_summary(db: Session, service: Service, incident: Incident) -> None:
-    """Ask Ollama for a summary and store it; a failure leaves it NULL."""
-    recent = _recent_checks(db, service.id, limit=PROMPT_CHECK_COUNT)
-    prompt = build_incident_prompt(service, incident, recent)
-    # The prompt is stored even when generation fails, so it is always
-    # possible to see exactly what context the (attempted) summary used.
-    incident.raw_context = prompt
-    summary = ollama_client.generate(prompt)
-    if summary is not None:
-        incident.ai_summary = summary
-        logger.info("AI summary stored for incident_id=%s", incident.id)
-    db.commit()
 
 
 def list_incidents(

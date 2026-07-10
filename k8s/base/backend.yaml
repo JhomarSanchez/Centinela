@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
         - name: backend
-          image: centinela-backend:0.3.0
+          image: centinela-backend:0.6.0
           # IfNotPresent lets the cluster use the locally loaded image
           # instead of trying to pull it from Docker Hub (where it isn't).
           imagePullPolicy: IfNotPresent
@@ -40,6 +40,11 @@ spec:
                 secretKeyRef:
                   name: centinela-secrets
                   key: API_KEY
+            - name: APP_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: centinela-secrets
+                  key: APP_SECRET_KEY
             - name: DATABASE_URL
               value: postgresql+psycopg://centinela:$(POSTGRES_PASSWORD)@postgres:5432/centinela
           envFrom:

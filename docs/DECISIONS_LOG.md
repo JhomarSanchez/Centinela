@@ -23,6 +23,31 @@ Historical project log: what changed, what was decided, and why. This file gives
 
 ---
 
+## 2026-07-10 - Phase 6 implemented: product UI and multi-provider incident intelligence
+
+**Phase:** Phase 6 - Product UI and Multi-Provider AI
+
+**What changed:** Centinela now has a containerized React/TypeScript application at port 8080 with Spanish/English UI, responsive service and incident workflows, dashboard read models, manual checks, timelines, AI settings, generated OpenAPI types, and a Playwright browser flow. FastAPI now exposes `/api/v1`, signed 12-hour admin sessions, CSRF protection, authenticated data reads, encrypted provider credentials, and adapters for Ollama, OpenAI Responses API, and Anthropic Messages API. Incident summary calls moved out of the health-check tick into a bounded-retry background worker. The backend suite grew from 69 to 82 tests; frontend type-check, unit test, production build, and the browser acceptance flow all pass locally.
+
+**Decisions made and why:**
+- **React UI alongside Grafana:** the web app owns onboarding, CRUD, incident interpretation, and settings; Grafana remains the technical metrics surface instead of being stretched into a product UI.
+- **API-key-to-session exchange:** `API_KEY` remains compatible with CLI scripts, while the browser receives a signed HttpOnly cookie and uses CSRF proof for mutations. This avoids placing the administrative key in browser storage.
+- **Encrypted BYOK cloud credentials:** one global provider configuration stores only authenticated ciphertext and a four-character hint. A non-default `APP_SECRET_KEY` is required before cloud keys can be saved.
+- **Explicit provider adapters instead of LiteLLM:** three small adapters keep behavior and errors understandable. Provider/model/latency/token provenance is stored on incidents, and model IDs remain editable rather than tied to a hard-coded catalog.
+- **Separate summary worker:** new incidents queue AI work; transient failures retry after 1 and 5 minutes, then require a manual retry. Authentication/model errors fail immediately. This bounds cloud cost and prevents a slow LLM from blocking service checks.
+- **Ollama is optional:** the default Compose/Kubernetes stack works without the multi-gigabyte model service. A Compose profile and `local-ollama` overlay add it when local inference is wanted.
+- **Authenticated read APIs:** product data and stored prompts are no longer anonymously readable. `/health`, `/metrics`, login, and technical documentation remain open on local/internal interfaces.
+
+**Compatibility and validation notes:**
+- Original unversioned service/incident routes remain as deprecated authenticated aliases; `/api/v1` is the supported contract.
+- Existing summaries migrate to `completed/ollama`; old incidents without summaries migrate to `skipped`, preventing an upgrade from creating unexpected cloud charges.
+- PostgreSQL migration SQL was rendered and checked, including single creation of each enum type. Docker Compose and kustomize could not be executed locally because Docker and kubectl are unavailable in this environment; CI keeps both validations.
+
+**Open follow-ups / TODO:**
+- Phase 7: notification channels, deduplication, silences, maintenance windows, acknowledgement, and incident notes.
+- Phase 8: advanced HTTP/TCP/DNS/TLS/heartbeat monitors.
+- Phase 9: public cloud, multi-user isolation, strict SSRF policy, scheduler separation, external secrets, and GitOps.
+
 ## 2026-07-08 - Phases 4 and 5 implemented: Kubernetes manifests and GitHub Actions CI
 
 **Phase:** Phase 4 - Kubernetes / Phase 5 - CI

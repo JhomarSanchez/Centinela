@@ -63,14 +63,22 @@ def test_one_failing_check_does_not_lose_the_others(db_session, monkeypatch):
     _add_service(db_session, name="breaks", url="https://breaks.example.com/health")
     survivor = _add_service(db_session, name="works", url="https://works.example.com/health")
 
-    def fake_run_check(url, **kwargs):
-        if "breaks" in url:
+    def fake_execute_check(db, service, **kwargs):
+        if "breaks" in service.url:
             raise RuntimeError("unexpected failure inside the check")
-        return CheckStatus.up, 100, 200
+        check = Check(
+            service_id=service.id,
+            status=CheckStatus.up,
+            latency_ms=100,
+            http_code=200,
+        )
+        db.add(check)
+        db.commit()
+        return check
 
     # The tick opens its own session; point it at the test database instead.
     monkeypatch.setattr("app.scheduler.jobs.SessionLocal", lambda: db_session)
-    monkeypatch.setattr("app.scheduler.jobs.run_check", fake_run_check)
+    monkeypatch.setattr("app.scheduler.jobs.execute_check", fake_execute_check)
 
     check_due_services()
 

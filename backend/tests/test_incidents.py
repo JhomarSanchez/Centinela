@@ -2,7 +2,9 @@
 
 from datetime import UTC, datetime, timedelta
 
-from app.models import Check, CheckStatus, Incident, Service
+from app.ai.providers import GenerationResult
+from app.ai.worker import process_incident_summary, retry_summary
+from app.models import AISummaryStatus, Check, CheckStatus, Incident, ProviderType, Service
 from app.services import incident_manager
 from tests.conftest import API_KEY_HEADER
 
@@ -114,39 +116,68 @@ class TestAiSummary:
         incident_manager.process_check_result(db_session, service, CheckStatus.down)
         return incident_manager.list_incidents(db_session, service_id=service.id)[0]
 
-    def test_summary_and_context_are_stored_when_ollama_answers(self, db_session, monkeypatch):
+    def test_summary_and_context_are_stored_when_provider_answers(
+        self, db_session, monkeypatch
+    ):
+        class FakeProvider:
+            def generate(self, request):
+                return GenerationResult(
+                    text="The service stopped responding.",
+                    provider=ProviderType.ollama,
+                    model=request.model,
+                    latency_ms=12,
+                )
+
         monkeypatch.setattr(
-            "app.services.incident_manager.ollama_client.generate",
-            lambda prompt: "The service stopped responding.",
+            "app.services.ai_settings_manager.build_provider",
+            lambda setting: FakeProvider(),
+        )
+        monkeypatch.setattr(
+            "app.services.ai_settings_manager.is_ready", lambda setting: True
         )
         service = _add_service(db_session)
 
         incident = self._open_with_streak(db_session, service)
+        process_incident_summary(db_session, incident)
 
         assert incident.ai_summary == "The service stopped responding."
         assert "svc" in incident.raw_context
         assert "status=down" in incident.raw_context
+        assert incident.ai_status == AISummaryStatus.completed
 
     def test_incident_opens_without_summary_when_ollama_fails(self, db_session):
-        # OLLAMA_ENABLED=false in tests, so the real client returns None.
+        # OLLAMA_ENABLED=false in tests, so the job is deliberately skipped.
         service = _add_service(db_session)
 
         incident = self._open_with_streak(db_session, service)
 
         assert incident.ai_summary is None
-        assert incident.raw_context is not None  # the prompt is kept anyway
+        assert incident.raw_context is None
+        assert incident.ai_status == AISummaryStatus.skipped
 
-    def test_summary_is_retried_on_the_next_down_check(self, db_session, monkeypatch):
+    def test_summary_can_be_retried_manually(self, db_session, monkeypatch):
         service = _add_service(db_session)
         incident = self._open_with_streak(db_session, service)
         assert incident.ai_summary is None
+
+        class FakeProvider:
+            def generate(self, request):
+                return GenerationResult(
+                    text="Recovered context: still failing.",
+                    provider=ProviderType.ollama,
+                    model=request.model,
+                    latency_ms=10,
+                )
 
         monkeypatch.setattr(
-            "app.services.incident_manager.ollama_client.generate",
-            lambda prompt: "Recovered context: still failing.",
+            "app.services.ai_settings_manager.is_ready", lambda setting: True
         )
-        _add_check(db_session, service.id, CheckStatus.down, 0)
-        incident_manager.process_check_result(db_session, service, CheckStatus.down)
+        monkeypatch.setattr(
+            "app.services.ai_settings_manager.build_provider",
+            lambda setting: FakeProvider(),
+        )
+        retry_summary(db_session, incident)
+        process_incident_summary(db_session, incident)
 
         db_session.refresh(incident)
         assert incident.ai_summary == "Recovered context: still failing."
@@ -169,7 +200,7 @@ class TestIncidentsApi:
         self._seed_incident(db_session, service.id, resolved=True)
         self._seed_incident(db_session, service.id, resolved=False)
 
-        response = client.get("/incidents")
+        response = client.get("/incidents", headers=API_KEY_HEADER)
 
         assert response.status_code == 200
         assert len(response.json()) == 2
@@ -179,7 +210,9 @@ class TestIncidentsApi:
         self._seed_incident(db_session, service.id, resolved=True)
         open_incident = self._seed_incident(db_session, service.id, resolved=False)
 
-        data = client.get("/incidents", params={"active": "true"}).json()
+        data = client.get(
+            "/incidents", params={"active": "true"}, headers=API_KEY_HEADER
+        ).json()
 
         assert [incident["id"] for incident in data] == [open_incident.id]
         assert data[0]["resolved_at"] is None
@@ -189,7 +222,9 @@ class TestIncidentsApi:
         resolved = self._seed_incident(db_session, service.id, resolved=True)
         self._seed_incident(db_session, service.id, resolved=False)
 
-        data = client.get("/incidents", params={"active": "false"}).json()
+        data = client.get(
+            "/incidents", params={"active": "false"}, headers=API_KEY_HEADER
+        ).json()
 
         assert [incident["id"] for incident in data] == [resolved.id]
         assert data[0]["ai_summary"] == "summary"
@@ -200,13 +235,17 @@ class TestIncidentsApi:
         self._seed_incident(db_session, first.id, resolved=False)
         self._seed_incident(db_session, second.id, resolved=False)
 
-        data = client.get(f"/services/{first.id}/incidents").json()
+        data = client.get(
+            f"/services/{first.id}/incidents", headers=API_KEY_HEADER
+        ).json()
 
         assert len(data) == 1
         assert data[0]["service_id"] == first.id
 
     def test_incidents_for_unknown_service_return_404(self, client):
-        assert client.get("/services/999/incidents").status_code == 404
+        assert (
+            client.get("/services/999/incidents", headers=API_KEY_HEADER).status_code == 404
+        )
 
     def test_deleting_a_service_deletes_its_incidents(self, client, db_session):
         service = _add_service(db_session)
@@ -215,4 +254,4 @@ class TestIncidentsApi:
         response = client.delete(f"/services/{service.id}", headers=API_KEY_HEADER)
         assert response.status_code == 204
 
-        assert client.get("/incidents").json() == []
+        assert client.get("/incidents", headers=API_KEY_HEADER).json() == []

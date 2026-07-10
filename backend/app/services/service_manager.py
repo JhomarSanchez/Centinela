@@ -1,17 +1,26 @@
-"""CRUD operations for services and their check history.
+"""CRUD operations and UI-oriented service read models.
 
 Routers stay thin: they translate HTTP to/from these functions, which hold
 the actual business rules.
 """
 
-from sqlalchemy import select
+from datetime import UTC, datetime, timedelta
+from typing import Literal
+
+from sqlalchemy import case, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app import metrics
 from app.config import get_settings
-from app.models import Check, Service
-from app.models.schemas import ServiceCreate, ServiceUpdate
+from app.models import Check, CheckStatus, Incident, Service
+from app.models.schemas import (
+    ServiceCreate,
+    ServiceSummary,
+    ServiceTimelineRead,
+    ServiceUpdate,
+    TimelinePoint,
+)
 
 
 class ServiceNameTakenError(Exception):
@@ -41,6 +50,67 @@ def create_service(db: Session, payload: ServiceCreate) -> Service:
 def list_services(db: Session) -> list[Service]:
     """All registered services, oldest first."""
     return list(db.scalars(select(Service).order_by(Service.id)))
+
+
+def list_service_summaries(db: Session, now: datetime | None = None) -> list[ServiceSummary]:
+    """Return every service with its latest state and 24-hour availability."""
+    now = now or datetime.now(UTC)
+    ranked_checks = (
+        select(
+            Check.service_id,
+            Check.status,
+            Check.checked_at,
+            Check.latency_ms,
+            func.row_number()
+            .over(
+                partition_by=Check.service_id,
+                order_by=(Check.checked_at.desc(), Check.id.desc()),
+            )
+            .label("row_number"),
+        )
+        .subquery()
+    )
+    latest = {
+        row.service_id: row
+        for row in db.execute(select(ranked_checks).where(ranked_checks.c.row_number == 1))
+    }
+    availability = {
+        row.service_id: (row.up_count, row.total)
+        for row in db.execute(
+            select(
+                Check.service_id,
+                func.sum(case((Check.status == CheckStatus.up, 1), else_=0)).label("up_count"),
+                func.count(Check.id).label("total"),
+            )
+            .where(Check.checked_at >= now - timedelta(hours=24))
+            .group_by(Check.service_id)
+        )
+    }
+    active_incidents = {
+        service_id: incident_id
+        for service_id, incident_id in db.execute(
+            select(Incident.service_id, Incident.id).where(Incident.resolved_at.is_(None))
+        )
+    }
+    summaries: list[ServiceSummary] = []
+    for service in list_services(db):
+        latest_row = latest.get(service.id)
+        up_count, total = availability.get(service.id, (0, 0))
+        summaries.append(
+            ServiceSummary(
+                id=service.id,
+                name=service.name,
+                url=service.url,
+                check_interval_seconds=service.check_interval_seconds,
+                created_at=service.created_at,
+                latest_status=latest_row.status if latest_row else None,
+                last_checked_at=latest_row.checked_at if latest_row else None,
+                last_latency_ms=latest_row.latency_ms if latest_row else None,
+                availability_24h=round((up_count / total) * 100, 2) if total else None,
+                active_incident_id=active_incidents.get(service.id),
+            )
+        )
+    return summaries
 
 
 def get_service(db: Session, service_id: int) -> Service | None:
@@ -91,4 +161,64 @@ def list_checks(db: Session, service_id: int, limit: int = 50) -> list[Check]:
             .order_by(Check.checked_at.desc(), Check.id.desc())
             .limit(limit)
         )
+    )
+
+
+def service_timeline(
+    db: Session,
+    service_id: int,
+    from_: datetime,
+    to: datetime,
+    bucket: Literal["5m", "1h", "1d"],
+) -> ServiceTimelineRead:
+    """Aggregate checks into portable in-memory buckets for SQLite and PostgreSQL."""
+    bucket_seconds = {"5m": 300, "1h": 3600, "1d": 86400}[bucket]
+    checks = list(
+        db.scalars(
+            select(Check)
+            .where(
+                Check.service_id == service_id,
+                Check.checked_at >= from_,
+                Check.checked_at <= to,
+            )
+            .order_by(Check.checked_at)
+        )
+    )
+    grouped: dict[int, list[Check]] = {}
+    for check in checks:
+        checked_at = (
+            check.checked_at.replace(tzinfo=UTC)
+            if check.checked_at.tzinfo is None
+            else check.checked_at.astimezone(UTC)
+        )
+        bucket_key = int(checked_at.timestamp()) // bucket_seconds * bucket_seconds
+        grouped.setdefault(bucket_key, []).append(check)
+    points: list[TimelinePoint] = []
+    for bucket_key, bucket_checks in sorted(grouped.items()):
+        counts = {status: 0 for status in CheckStatus}
+        latencies: list[int] = []
+        for check in bucket_checks:
+            counts[check.status] += 1
+            if check.latency_ms is not None:
+                latencies.append(check.latency_ms)
+        total = len(bucket_checks)
+        points.append(
+            TimelinePoint(
+                bucket_start=datetime.fromtimestamp(bucket_key, tz=UTC),
+                total=total,
+                up=counts[CheckStatus.up],
+                degraded=counts[CheckStatus.degraded],
+                down=counts[CheckStatus.down],
+                availability_percent=round(counts[CheckStatus.up] / total * 100, 2),
+                average_latency_ms=(
+                    round(sum(latencies) / len(latencies), 2) if latencies else None
+                ),
+            )
+        )
+    return ServiceTimelineRead(
+        service_id=service_id,
+        from_=from_,
+        to=to,
+        bucket=bucket,
+        points=points,
     )

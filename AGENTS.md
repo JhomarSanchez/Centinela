@@ -11,7 +11,7 @@ This file is the primary source of instructions for any AI agent working in this
 
 ## Project Mission
 
-Centinela is a personal service-monitoring platform. It registers services, runs periodic health checks, stores availability history, exposes metrics, and later uses a local LLM through Ollama to generate natural-language incident summaries.
+Centinela is a personal service-monitoring platform. It registers services, runs periodic health checks, stores availability history, exposes a product UI and metrics, and uses a selectable Ollama, OpenAI, or Anthropic model for natural-language incident summaries.
 
 Read `README.md` for the product overview and `docs/ARCHITECTURE.md` for the system design.
 
@@ -23,7 +23,8 @@ Read `README.md` for the product overview and `docs/ARCHITECTURE.md` for the sys
 - Phase 3 is complete: Ollama in Docker Compose (internal network only), incident detection on consecutive `down` checks, AI summaries stored on incidents, and incident endpoints at `/incidents` and `/services/{id}/incidents`.
 - Phase 4 is complete: kustomize manifests under `k8s/` (base + local overlay), verified against a kind cluster.
 - Phase 5 is complete: GitHub Actions CI (`.github/workflows/ci.yml`) with lint, tests, Docker build, and manifest validation.
-- All planned phases are done. Remaining work comes from the optional list in `docs/ROADMAP.md` (alerts, cloud deployment, multi-user auth, GitOps).
+- Phase 6 is complete: bilingual React UI, signed admin sessions, encrypted provider credentials, versioned product APIs, and provider-neutral AI summary jobs.
+- All planned phases are done. The next recommended phase in `docs/ROADMAP.md` is alerts and incident workflow.
 - If the roadmap and code disagree, treat `docs/ROADMAP.md` and `docs/DECISIONS_LOG.md` as the sources of truth, then update them once the discrepancy is resolved.
 
 ## Non-Negotiable Rules
@@ -41,12 +42,13 @@ Read `README.md` for the product overview and `docs/ARCHITECTURE.md` for the sys
 - **Testing:** Prefer `pytest` when tests are introduced unless a later decision changes this.
 - **Style:** Follow PEP 8, use type hints in public functions, and add brief docstrings for modules and non-trivial functions.
 - **Documentation language:** Keep repository documentation in English unless the user explicitly requests otherwise.
-- **Local AI:** Ollama must run as a separate service. The backend talks to Ollama over HTTP; do not embed the model inside the API process.
+- **AI providers:** Ollama must run as a separate optional service. OpenAI and Anthropic credentials stay encrypted in the backend and must never be sent to or stored by the browser.
 
 ## Proposed Repository Structure
 
 ```text
 centinela/
+├── frontend/             # React/TypeScript product UI + browser tests
 ├── backend/
 │   ├── app/
 │   │   ├── main.py
@@ -54,7 +56,7 @@ centinela/
 │   │   ├── models/       # SQLAlchemy models + Pydantic schemas
 │   │   ├── services/     # business logic such as health checks
 │   │   ├── scheduler/    # periodic jobs
-│   │   └── ai/           # Ollama client and prompt building
+│   │   └── ai/           # Provider adapters, prompt building, and summary worker
 │   ├── tests/
 │   ├── Dockerfile
 │   └── requirements.txt

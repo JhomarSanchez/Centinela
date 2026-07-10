@@ -14,12 +14,11 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
-from app import metrics
+from app.ai.worker import process_pending_summaries
 from app.config import get_settings
 from app.database import SessionLocal
 from app.models import Check, Service
-from app.services import incident_manager
-from app.services.health_checker import run_check
+from app.services.check_runner import execute_check
 
 logger = logging.getLogger(__name__)
 
@@ -58,48 +57,24 @@ def find_due_services(db: Session, now: datetime | None = None) -> list[Service]
 
 def check_due_services() -> None:
     """One scheduler tick: run a health check for every due service and store the results."""
-    settings = get_settings()
     with SessionLocal() as db:
         for service in find_due_services(db):
             # Each service gets its own try/except and commit so one bad
             # apple (an unexpected error, or a service deleted mid-tick)
             # cannot discard the results of every other service in the tick.
             try:
-                status, latency_ms, http_code = run_check(
-                    service.url,
-                    timeout=settings.check_timeout_seconds,
-                    degraded_latency_ms=settings.degraded_latency_ms,
-                )
-                db.add(
-                    Check(
-                        service_id=service.id,
-                        status=status,
-                        latency_ms=latency_ms,
-                        http_code=http_code,
-                    )
-                )
-                db.commit()
+                check = execute_check(db, service)
             except Exception:
                 logger.exception("health check failed for service=%s", service.name)
                 db.rollback()
                 continue
-            # Metrics update only after the check is safely stored, so the
-            # dashboard never shows a result the database does not have.
-            metrics.record_check(service.name, status, latency_ms)
             logger.info(
                 "checked service=%s status=%s latency_ms=%s http_code=%s",
                 service.name,
-                status.value,
-                latency_ms,
-                http_code,
+                check.status.value,
+                check.latency_ms,
+                check.http_code,
             )
-            # Incident handling is isolated too: a failure here (e.g. a bug
-            # in the AI path) must not stop the remaining health checks.
-            try:
-                incident_manager.process_check_result(db, service, status)
-            except Exception:
-                logger.exception("incident processing failed for service=%s", service.name)
-                db.rollback()
 
 
 def delete_old_checks(db: Session, now: datetime | None = None) -> int:
@@ -146,5 +121,13 @@ def create_scheduler() -> BackgroundScheduler:
         # Also run shortly after startup, so restarting the backend is enough
         # to apply a new retention setting without waiting a full day.
         next_run_time=datetime.now(UTC) + timedelta(minutes=1),
+    )
+    scheduler.add_job(
+        process_pending_summaries,
+        "interval",
+        seconds=settings.ai_worker_seconds,
+        id="ai-summary-worker",
+        max_instances=1,
+        coalesce=True,
     )
     return scheduler

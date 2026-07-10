@@ -1,7 +1,8 @@
-# Local stack: FastAPI backend + PostgreSQL (Phase 1), Prometheus + Grafana
-# (Phase 2), and Ollama for AI incident summaries (Phase 3).
+# Local stack: React/Nginx product UI, FastAPI, PostgreSQL, Prometheus, and
+# Grafana. Ollama is an optional profile; OpenAI/Anthropic need no container.
 # Docker Compose automatically loads a `.env` file from this directory for the
-# ${VAR:-default} substitutions below, so `cp .env.example .env` is enough.
+# ${VAR:-default} substitutions below. Copy `.env.example`, then replace the
+# public API/encryption defaults before saving cloud credentials.
 
 services:
   postgres:
@@ -25,6 +26,7 @@ services:
     environment:
       APP_ENV: ${APP_ENV:-development}
       API_KEY: ${API_KEY:-change-me}
+      APP_SECRET_KEY: ${APP_SECRET_KEY:-change-me}
       # +psycopg selects the psycopg 3 driver explicitly.
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-centinela}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/${POSTGRES_DB:-centinela}
       DEFAULT_CHECK_INTERVAL_SECONDS: ${DEFAULT_CHECK_INTERVAL_SECONDS:-60}
@@ -33,12 +35,15 @@ services:
       SCHEDULER_TICK_SECONDS: ${SCHEDULER_TICK_SECONDS:-10}
       CHECK_RETENTION_DAYS: ${CHECK_RETENTION_DAYS:-30}
       INCIDENT_FAILURE_THRESHOLD: ${INCIDENT_FAILURE_THRESHOLD:-3}
-      OLLAMA_ENABLED: ${OLLAMA_ENABLED:-true}
+      AI_WORKER_SECONDS: ${AI_WORKER_SECONDS:-5}
+      OLLAMA_ENABLED: ${OLLAMA_ENABLED:-false}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.1:8b}
       OLLAMA_TIMEOUT_SECONDS: ${OLLAMA_TIMEOUT_SECONDS:-120}
+      OPENAI_TIMEOUT_SECONDS: ${OPENAI_TIMEOUT_SECONDS:-60}
+      ANTHROPIC_TIMEOUT_SECONDS: ${ANTHROPIC_TIMEOUT_SECONDS:-60}
     ports:
-      - "8000:8000"
+      - "${BIND_ADDRESS:-127.0.0.1}:8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -52,22 +57,23 @@ services:
       start_period: 30s
     restart: unless-stopped
 
+  frontend:
+    build: ./frontend
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:8080:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
   ollama:
     image: ollama/ollama:latest
+    profiles: ["ollama"]
     # No published ports on purpose: only the backend (inside the Compose
     # network) may talk to the LLM, per docs/ARCHITECTURE.md.
     volumes:
       # Persists downloaded models, so `ollama pull` is a one-time step.
       - ollama_models:/root/.ollama
-    # Hand the NVIDIA GPU to the container; generation on CPU works but is
-    # much slower. Remove this block on machines without an NVIDIA GPU.
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
     restart: unless-stopped
 
   prometheus:
@@ -76,7 +82,7 @@ services:
       - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     ports:
-      - "9090:9090"
+      - "${BIND_ADDRESS:-127.0.0.1}:9090:9090"
     depends_on:
       backend:
         condition: service_healthy
@@ -94,7 +100,7 @@ services:
       - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana_data:/var/lib/grafana
     ports:
-      - "3000:3000"
+      - "${BIND_ADDRESS:-127.0.0.1}:3000:3000"
     depends_on:
       - prometheus
     restart: unless-stopped

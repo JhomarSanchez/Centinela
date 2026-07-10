@@ -7,7 +7,7 @@ from fastapi import FastAPI, Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from app import metrics
-from app.api.routes import incidents, services
+from app.api.routes import ai, auth, dashboard, incidents, services
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -27,6 +27,11 @@ async def lifespan(app: FastAPI):
         logger.warning(
             "API_KEY is still the default 'change-me'; set a real value in .env "
             "before exposing this API beyond localhost"
+        )
+    if settings.app_secret_key == "change-me":
+        logger.warning(
+            "APP_SECRET_KEY is still the development default; browser sessions work, "
+            "but cloud provider credentials cannot be saved until it is changed"
         )
 
     scheduler = None
@@ -56,11 +61,18 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Centinela",
     description="Personal service-monitoring platform with health checks and history.",
-    version="0.3.0",
+    version="0.6.0",
     lifespan=lifespan,
 )
-app.include_router(services.router)
-app.include_router(incidents.router)
+# The versioned API is the product contract used by the web app. The original
+# paths remain as temporary authenticated aliases for existing CLI scripts.
+app.include_router(auth.router, prefix="/api/v1")
+app.include_router(dashboard.router, prefix="/api/v1")
+app.include_router(ai.router, prefix="/api/v1")
+app.include_router(services.router, prefix="/api/v1")
+app.include_router(incidents.router, prefix="/api/v1")
+app.include_router(services.router, deprecated=True)
+app.include_router(incidents.router, deprecated=True)
 
 
 @app.get("/health", tags=["health"])

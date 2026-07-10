@@ -13,6 +13,7 @@ import os
 os.environ["SCHEDULER_ENABLED"] = "false"  # tests must never hit the real network
 os.environ["OLLAMA_ENABLED"] = "false"  # same rule for the LLM
 os.environ["API_KEY"] = "test-key"
+os.environ["APP_SECRET_KEY"] = "test-secret-key-for-centinela-tests"
 
 import pytest
 from fastapi.testclient import TestClient

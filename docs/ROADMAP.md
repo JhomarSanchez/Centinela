@@ -4,9 +4,9 @@ Phased development plan. **Do not move to the next phase until the current phase
 
 ## Current Status
 
-- **Current phase:** All planned phases (0-5) are complete.
-- **Completed:** Phase 0 - Planning. Phase 1 - Basic backend. Phase 2 - Classic observability. Phase 3 - Local AI incident summaries. Phase 4 - Kubernetes. Phase 5 - CI.
-- **Next step:** Optional future phases only (alerts, cloud deployment, multi-user auth, GitOps).
+- **Current phase:** All planned phases (0-6) are complete.
+- **Completed:** Planning, backend monitoring, observability, incidents, Kubernetes, CI, and the Phase 6 product UI + multi-provider AI release.
+- **Next recommended phase:** Phase 7 - alerts and incident workflow.
 
 ## Phase 0 - Planning Complete
 
@@ -75,9 +75,23 @@ Phased development plan. **Do not move to the next phase until the current phase
 
 **Deliverable:** A passing CI badge appears in `README`, and the pipeline is visible in GitHub Actions.
 
-## Future Optional Phases
+## Phase 6 - Product UI and Multi-Provider AI
 
-- Email or Slack alerts when an incident opens.
-- Migration to a real cloud deployment on a free or low-cost tier.
-- Multi-user authentication.
-- GitOps with Argo CD for continuous deployment to the cluster.
+**Goal:** Make Centinela operable without API knowledge and remove the Ollama-only limitation.
+
+- [x] Add a responsive React + TypeScript application in Spanish and English.
+- [x] Add signed admin sessions, CSRF protection, and authenticated data APIs.
+- [x] Add dashboard, service timeline, manual-check, incident-detail, and AI-settings endpoints.
+- [x] Encrypt cloud provider credentials and expose only masked metadata.
+- [x] Support Ollama, OpenAI Responses API, and Anthropic Messages API behind one contract.
+- [x] Move summary generation to an independent worker with bounded retries and manual retry.
+- [x] Generate frontend types from OpenAPI and add unit + browser acceptance coverage.
+- [x] Containerize the frontend and make Ollama optional in Compose and Kubernetes.
+
+**Deliverable:** A user opens `localhost:8080`, manages the full monitoring lifecycle visually, and changes AI provider without modifying code.
+
+## Recommended Future Phases
+
+- **Phase 7 - Alerts and incident workflow:** email/webhook channels, deduplication, silences, maintenance windows, acknowledgement, and notes.
+- **Phase 8 - Advanced monitors:** custom HTTP methods/headers/assertions, TCP/DNS/TLS checks, and heartbeat monitors.
+- **Phase 9 - Cloud and users:** public deployment, strict SSRF controls, scheduler separation, multi-user data isolation, external secret management, and GitOps.

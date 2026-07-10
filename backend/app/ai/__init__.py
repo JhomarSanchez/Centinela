@@ -1,1 +1,1 @@
-"""Local AI integration: Ollama HTTP client and incident prompt building."""
+"""Provider-neutral AI integration and incident prompt building."""

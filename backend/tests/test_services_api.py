@@ -28,8 +28,9 @@ class TestApiKey:
         )
         assert response.status_code == 401
 
-    def test_reads_do_not_need_a_key(self, client):
-        assert client.get("/services").status_code == 200
+    def test_reads_require_authentication(self, client):
+        assert client.get("/services").status_code == 401
+        assert client.get("/services", headers=API_KEY_HEADER).status_code == 200
 
 
 class TestServiceCrud:
@@ -63,17 +64,20 @@ class TestServiceCrud:
     def test_list_returns_created_services(self, client):
         _create_service(client)
         _create_service(client, {"name": "Second", "url": "https://example.org/health"})
-        names = [service["name"] for service in client.get("/services").json()]
+        names = [
+            service["name"]
+            for service in client.get("/services", headers=API_KEY_HEADER).json()
+        ]
         assert names == ["Personal API", "Second"]
 
     def test_get_by_id(self, client):
         created = _create_service(client)
-        response = client.get(f"/services/{created['id']}")
+        response = client.get(f"/services/{created['id']}", headers=API_KEY_HEADER)
         assert response.status_code == 200
         assert response.json()["name"] == "Personal API"
 
     def test_get_unknown_id_returns_404(self, client):
-        assert client.get("/services/999").status_code == 404
+        assert client.get("/services/999", headers=API_KEY_HEADER).status_code == 404
 
     def test_partial_update(self, client):
         created = _create_service(client)
@@ -97,7 +101,9 @@ class TestServiceCrud:
         assert (
             client.delete(f"/services/{created['id']}", headers=API_KEY_HEADER).status_code == 204
         )
-        assert client.get(f"/services/{created['id']}").status_code == 404
+        assert (
+            client.get(f"/services/{created['id']}", headers=API_KEY_HEADER).status_code == 404
+        )
 
 
 class TestCheckHistory:
@@ -119,7 +125,9 @@ class TestCheckHistory:
         created = _create_service(client)
         self._insert_checks(db_session, created["id"], count=3)
 
-        checks = client.get(f"/services/{created['id']}/checks").json()
+        checks = client.get(
+            f"/services/{created['id']}/checks", headers=API_KEY_HEADER
+        ).json()
         assert len(checks) == 3
         latencies = [check["latency_ms"] for check in checks]
         assert latencies == [102, 101, 100]  # newest first
@@ -129,8 +137,12 @@ class TestCheckHistory:
         created = _create_service(client)
         self._insert_checks(db_session, created["id"], count=5)
 
-        checks = client.get(f"/services/{created['id']}/checks", params={"limit": 2}).json()
+        checks = client.get(
+            f"/services/{created['id']}/checks",
+            params={"limit": 2},
+            headers=API_KEY_HEADER,
+        ).json()
         assert len(checks) == 2
 
     def test_history_for_unknown_service_returns_404(self, client):
-        assert client.get("/services/999/checks").status_code == 404
+        assert client.get("/services/999/checks", headers=API_KEY_HEADER).status_code == 404

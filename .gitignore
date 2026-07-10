@@ -21,7 +21,13 @@ env/
 # Build and packaging
 build/
 dist/
+node_modules/
+*.tsbuildinfo
 *.egg-info/
+
+# Browser test artifacts
+playwright-report/
+test-results/
 
 # Logs and local runtime files
 *.log

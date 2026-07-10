@@ -2,10 +2,10 @@
 
 # Centinela
 
-**Local-first service monitoring with human-readable incident summaries.**
+**Local-first service monitoring with a real product UI and explainable incidents.**
 
 Centinela watches APIs, websites, and internal endpoints, stores their health history,
-and will use a local LLM through Ollama to explain outages in plain language.
+and uses your choice of Ollama, OpenAI, or Anthropic to explain outages in plain language.
 
 <p>
   <a href="https://github.com/JhomarSanchez/Centinela/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/JhomarSanchez/Centinela/actions/workflows/ci.yml/badge.svg"></a>
@@ -16,6 +16,7 @@ and will use a local LLM through Ollama to explain outages in plain language.
 <p>
   <img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white">
   <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white">
+  <img alt="React" src="https://img.shields.io/badge/React-TypeScript-61DAFB?style=flat-square&logo=react&logoColor=111827">
   <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white">
   <img alt="Prometheus" src="https://img.shields.io/badge/Prometheus-E6522C?style=flat-square&logo=prometheus&logoColor=white">
   <img alt="Grafana" src="https://img.shields.io/badge/Grafana-F46800?style=flat-square&logo=grafana&logoColor=white">
@@ -48,7 +49,8 @@ Centinela answers the questions that matter first:
 
 - **Is this service up right now?** Scheduled health checks record the latest state.
 - **How has it behaved over time?** Every check is stored with status, latency, and HTTP code.
-- **What happened when it failed?** A later phase adds AI incident summaries generated locally with Ollama.
+- **What happened when it failed?** Provider-neutral AI summaries explain the evidence and first investigation step.
+- **Can a non-developer operate it?** The bilingual web app handles services, checks, incidents, and AI settings without curl.
 
 It is not another giant observability platform — it is a focused, portfolio-grade monitoring system built in small, working phases.
 
@@ -60,11 +62,12 @@ Every planned phase is implemented, tested, and verified:
 |---|---|
 | 🩺 | **Health checks** — register any URL and a background scheduler probes it on its own interval. |
 | 🗄️ | **History** — every result (`up`, `degraded`, `down`) lands in PostgreSQL, with automatic retention cleanup. |
-| 📈 | **Dashboards** — Prometheus scrapes `/metrics`; a pre-provisioned Grafana dashboard shows status, availability %, latency, and open incidents with zero manual setup. |
-| 🤖 | **AI incident summaries** — repeated failures open an *incident* and a local LLM (Ollama) explains it in plain language. No cloud APIs, everything stays on your machine. |
+| 🖥️ | **Product UI** — a responsive Spanish/English React app manages services, charts, incidents, themes, and AI configuration. |
+| 📈 | **Technical dashboards** — Prometheus and a pre-provisioned Grafana dashboard remain available for deeper operational analysis. |
+| 🤖 | **Provider-neutral AI summaries** — choose local Ollama or bring an OpenAI/Anthropic API key, encrypted at rest. |
 | 🐳 | **One-command startup** — the whole stack runs with `docker compose up`. |
 | ☸️ | **Kubernetes-ready** — kustomize manifests deploy the same stack to a local cluster (kind/Minikube). |
-| ✅ | **CI** — GitHub Actions lints, runs the 69-test suite, builds the image, and validates the manifests on every push. |
+| ✅ | **CI** — GitHub Actions validates backend, frontend, generated API contracts, browser flows, images, and manifests. |
 | 🔐 | **Guarded writes** — mutating endpoints require an `X-API-Key` header. |
 
 ## Quick Start
@@ -72,28 +75,37 @@ Every planned phase is implemented, tested, and verified:
 Requirements: [Docker](https://docs.docker.com/get-docker/) with Docker Compose.
 
 ```bash
-# 1. Configure the environment (defaults work out of the box)
+# 1. Configure the local administrator and encryption secret
 cp .env.example .env
+# Edit API_KEY, then generate APP_SECRET_KEY with:
+python -c "import secrets; print(secrets.token_urlsafe(48))"
 
-# 2. Build and start the full stack (API, PostgreSQL, Prometheus, Grafana, Ollama)
+# 2. Build and start the UI, API, PostgreSQL, Prometheus, and Grafana
 docker compose up --build -d
 
-# 3. Verify it is alive
+# 3. Open http://localhost:8080 and sign in with API_KEY
+# The backend remains available for CLI use:
 curl http://localhost:8000/health
 # {"status":"ok"}
+```
 
-# 4. One-time: download the local LLM used for incident summaries (~4.9 GB)
+Ollama is optional. To run it on CPU, set `OLLAMA_ENABLED=true`, select Ollama in
+the web settings, and start its profile:
+
+```bash
+docker compose --profile ollama up -d
 docker compose exec ollama ollama pull llama3.1:8b
 ```
 
-> **No NVIDIA GPU?** Remove the `deploy:` block from the `ollama` service in
-> `docker-compose.yml` (runs on CPU, slower), or set `OLLAMA_ENABLED=false` in
-> `.env` to skip AI summaries entirely — incidents still work without them.
+For NVIDIA acceleration, add `-f docker-compose.gpu.yml` to the first command.
+OpenAI and Anthropic need no extra container: paste the provider API key in the
+web settings after changing `APP_SECRET_KEY` from its public default.
 
 Once the stack is up:
 
 | URL | What you get |
 |---|---|
+| <http://localhost:8080> | Centinela web application (Spanish/English). |
 | <http://localhost:8000/docs> | Interactive API documentation (Swagger UI). |
 | <http://localhost:8000/metrics> | Raw Prometheus metrics. |
 | <http://localhost:9090> | Prometheus UI (queries and target status). |
@@ -103,34 +115,36 @@ Database migrations run automatically when the backend container starts.
 
 ## Using the API
 
-Write operations require the API key from your `.env` (default: `change-me`).
+Every data endpoint requires either the signed browser session or `X-API-Key`.
+The versioned `/api/v1` contract is preferred; unversioned paths are temporary
+authenticated compatibility aliases.
 
 ```bash
 # Register a service checked every 60 seconds
-curl -X POST http://localhost:8000/services \
+curl -X POST http://localhost:8000/api/v1/services \
   -H "X-API-Key: change-me" \
   -H "Content-Type: application/json" \
   -d '{"name": "Personal API", "url": "https://example.com/health", "check_interval_seconds": 60}'
 
 # List registered services (reads need no key)
-curl http://localhost:8000/services
+curl http://localhost:8000/api/v1/services -H "X-API-Key: change-me"
 
 # Read the most recent checks, newest first
-curl "http://localhost:8000/services/1/checks?limit=10"
+curl "http://localhost:8000/api/v1/services/1/checks?limit=10" -H "X-API-Key: change-me"
 
 # Change the check interval
-curl -X PATCH http://localhost:8000/services/1 \
+curl -X PATCH http://localhost:8000/api/v1/services/1 \
   -H "X-API-Key: change-me" \
   -H "Content-Type: application/json" \
   -d '{"check_interval_seconds": 30}'
 
 # Stop monitoring (also deletes its check history and incidents)
-curl -X DELETE http://localhost:8000/services/1 -H "X-API-Key: change-me"
+curl -X DELETE http://localhost:8000/api/v1/services/1 -H "X-API-Key: change-me"
 
 # List incidents (all, only open, or per service)
-curl http://localhost:8000/incidents
-curl "http://localhost:8000/incidents?active=true"
-curl http://localhost:8000/services/1/incidents
+curl http://localhost:8000/api/v1/incidents -H "X-API-Key: change-me"
+curl "http://localhost:8000/api/v1/incidents?active=true" -H "X-API-Key: change-me"
+curl -X POST http://localhost:8000/api/v1/services/1/checks/run -H "X-API-Key: change-me"
 ```
 
 A check looks like this:
@@ -164,7 +178,9 @@ Checks older than `CHECK_RETENTION_DAYS` (default 30) are deleted once a day so 
 
 ## AI Incident Summaries
 
-When a service fails `INCIDENT_FAILURE_THRESHOLD` consecutive checks (default 3), Centinela opens an **incident** and asks a local LLM (running in the Ollama container) to explain it in plain language:
+When a service fails `INCIDENT_FAILURE_THRESHOLD` consecutive checks (default 3),
+Centinela opens an **incident** and queues a summary with the globally selected
+provider: Ollama, OpenAI Responses API, or Anthropic Messages API.
 
 ```json
 {
@@ -172,8 +188,11 @@ When a service fails `INCIDENT_FAILURE_THRESHOLD` consecutive checks (default 3)
   "service_id": 4,
   "started_at": "2026-07-08T17:11:46Z",
   "resolved_at": null,
+  "ai_provider": "openai",
+  "ai_model": "your-selected-model",
+  "ai_status": "completed",
   "ai_summary": "The Broken service has been unreachable since 17:09 UTC. Every check fails without an HTTP response, which points to DNS or connectivity problems rather than an application error. Start by verifying the hostname resolves and the server is reachable from the network.",
-  "raw_context": "You are the assistant of a service-monitoring system..."
+  "ai_attempt_count": 1
 }
 ```
 
@@ -182,8 +201,14 @@ Worth knowing:
 - The incident **starts when the failure streak began**, not when the threshold was crossed.
 - A successful check resolves the incident automatically (`resolved_at`).
 - `degraded` results neither open nor resolve incidents — only real downs and real recoveries count.
-- The AI is best-effort: if Ollama is off or the model is not downloaded, the incident opens with `ai_summary: null` and the summary is retried on later failed checks. `raw_context` always stores the exact prompt used, for transparency.
-- Everything stays on your machine: no external AI APIs are involved.
+- AI is best-effort and independent from health checks. Provider calls run in a
+  separate worker, retry after 1 and 5 minutes, then wait for a manual retry.
+- URLs sent to cloud models have credentials, query parameters, and fragments
+  removed. The exact prompt is available only from the authenticated context endpoint.
+- Provider credentials are encrypted with a key derived from `APP_SECRET_KEY`;
+  the API and UI only expose whether a key exists and its final four characters.
+- Ollama keeps data local. Selecting OpenAI or Anthropic explicitly sends the
+  sanitized incident facts to that provider and uses its separate API billing.
 
 ## Dashboards and Metrics
 
@@ -210,29 +235,31 @@ The same stack deploys to a local Kubernetes cluster from the kustomize manifest
 # 1. Create a local cluster (kind shown; Minikube works the same way)
 kind create cluster --name centinela
 
-# 2. Build the backend image and load the images into the cluster
-docker build -t centinela-backend:0.3.0 ./backend
-kind load docker-image centinela-backend:0.3.0 postgres:16-alpine \
-  prom/prometheus:v3.5.0 grafana/grafana:12.0.2 ollama/ollama:latest \
+# 2. Build and load the application images
+docker build -t centinela-backend:0.6.0 ./backend
+docker build -t centinela-frontend:0.6.0 ./frontend
+kind load docker-image centinela-backend:0.6.0 centinela-frontend:0.6.0 \
+  postgres:16-alpine prom/prometheus:v3.5.0 grafana/grafana:12.0.2 \
   --name centinela
 
 # 3. Deploy everything
 kubectl apply -k k8s/overlays/local
 
-# 4. Wait for the pods, then reach the API and Grafana with port-forwards
+# 4. Wait for the pods, then open the product UI
 kubectl -n centinela rollout status deployment/backend
-kubectl -n centinela port-forward svc/backend 8000:8000
-kubectl -n centinela port-forward svc/grafana 3000:3000
-
-# One-time: pull the LLM inside the cluster (or set OLLAMA_ENABLED=false)
-kubectl -n centinela exec deploy/ollama -- ollama pull llama3.1:8b
+kubectl -n centinela port-forward svc/frontend 8080:8080
 ```
 
-`k8s/base/` defines the five components (Deployments, Services, PVCs, generated ConfigMaps and Secrets); `k8s/overlays/local/` shows the overlay pattern with local tweaks. The secret values are `change-me` placeholders — override them in an overlay for anything beyond a throwaway cluster. Tear everything down with `kind delete cluster --name centinela`.
+The base works without a local LLM. To include Ollama, load its image and apply
+`k8s/overlays/local-ollama`; then pull the model inside the pod. Secret values are
+local placeholders—replace `API_KEY`, `APP_SECRET_KEY`, and database/Grafana
+passwords before using a shared cluster.
 
 ## Running the Tests
 
-Tests run against an in-memory SQLite database, so they need no containers and finish in under a second.
+Backend tests use in-memory SQLite and mocked providers. Frontend unit tests use
+jsdom, while the Playwright acceptance test starts a disposable SQLite API and a
+real Chromium browser; no live cloud model is called.
 
 ```bash
 cd backend
@@ -240,20 +267,34 @@ python -m venv .venv && source .venv/bin/activate   # on Windows: .venv\Scripts\
 pip install -r requirements-dev.txt
 pytest -v
 ruff check .
+
+cd ../frontend
+npm ci
+npm run lint
+npm run test
+npm run build
+npx playwright install chromium  # one-time browser install
+npm run e2e
 ```
 
 ## Architecture
 
-The backend keeps a layered structure (routes → services → models) with PostgreSQL and an in-process APScheduler. Prometheus scrapes the backend's `/metrics` and Grafana visualizes it. Ollama generates incident summaries over the internal network — it never touches the database and is never exposed outside the stack. The same topology ships as Docker Compose for daily use and as kustomize manifests for Kubernetes, and GitHub Actions validates every change.
+The React application calls the versioned FastAPI API through a same-origin Nginx
+proxy. FastAPI stores data in PostgreSQL and schedules health checks. A separate
+scheduler job processes AI summaries so slow providers cannot delay monitoring.
+Prometheus and Grafana remain an independent technical observability path.
 
 ```mermaid
 flowchart LR
-    User((User)) -->|REST API| API[FastAPI backend]
+    User((User)) --> UI[React + Nginx]
+    UI -->|/api/v1| API[FastAPI backend]
     API --> DB[(PostgreSQL)]
     SCHED[APScheduler tick] -->|periodic HTTP checks| EXT[Monitored services]
     SCHED -->|stores checks + incidents| DB
-    SCHED -->|incident prompt| AI[Ollama local LLM]
-    AI -->|summary text| SCHED
+    SCHED --> AIQ[AI summary worker]
+    AIQ -->|sanitized prompt| AI[Ollama / OpenAI / Anthropic]
+    AI -->|summary text| AIQ
+    AIQ -->|stores result| DB
     PROM[Prometheus] -->|scrapes /metrics| API
     GRAF[Grafana dashboard] --> PROM
     User --> GRAF
@@ -271,18 +312,21 @@ See [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) for the full design and dec
 | 3 | Incident detection and local AI summaries with Ollama | ✅ Done |
 | 4 | Local Kubernetes deployment (kind/Minikube) | ✅ Done |
 | 5 | CI with GitHub Actions | ✅ Done |
+| 6 | Product UI, secure sessions, and multi-provider AI | ✅ Done |
 
-All planned phases are shipped. Candidate future work: email/Slack alerts on incidents, a real cloud deployment, multi-user auth, GitOps with Argo CD. Details in [`docs/ROADMAP.md`](./docs/ROADMAP.md).
+Next recommended phases are alerting and incident workflow, advanced monitor
+types, then cloud/multi-user hardening. Details live in [`docs/ROADMAP.md`](./docs/ROADMAP.md).
 
 ## Repository Map
 
 | Path | Purpose |
 |---|---|
 | [`backend/`](./backend) | FastAPI application, migrations, and tests. |
+| [`frontend/`](./frontend) | React/TypeScript product UI, generated API types, and browser tests. |
 | [`observability/`](./observability) | Prometheus scrape config and Grafana provisioning + dashboards. |
 | [`k8s/`](./k8s) | Kustomize manifests: base + local overlay for kind/Minikube. |
 | [`.github/workflows/`](./.github/workflows) | CI pipeline: lint, tests, image build, manifest validation. |
-| [`docker-compose.yml`](./docker-compose.yml) | Local stack: backend + PostgreSQL + Prometheus + Grafana + Ollama. |
+| [`docker-compose.yml`](./docker-compose.yml) | Local UI/API/data/observability stack; Ollama is an optional profile. |
 | [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) | System design and technical decisions. |
 | [`docs/ROADMAP.md`](./docs/ROADMAP.md) | Phased delivery plan. |
 | [`docs/DECISIONS_LOG.md`](./docs/DECISIONS_LOG.md) | Historical decision log. |
